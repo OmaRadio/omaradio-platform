@@ -35,8 +35,8 @@ tx.omaradio.stream:80, tx.omaradio.stream:443 {
 		flush_interval -1
 
 		# Preserve the real client IP through the proxy -- cliamp-server
-		# uses these for its GeoIP listener stats.
+		# uses this for its GeoIP listener stats. (X-Forwarded-For is
+		# forwarded by Caddy automatically -- no need to set it here.)
 		header_up X-Real-IP {remote_host}
-		header_up X-Forwarded-For {remote_host}
 	}
 }
