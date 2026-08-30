@@ -31,7 +31,7 @@ name        = "OmaRadio One"
 description = "Omarchy Community Radio"
 genre       = "Talk/Variety"
 url         = "https://OmaRadio.stream"
-path        = "/mnt/media-library/stations/one/on-air"
+path        = "/mnt/media_library/stations/one/on-air"
 
 # CRITICAL: on-air/ is a hand-built, numerically-ordered symlink farm.
 # shuffle MUST stay false or your whole ordering scheme is ignored.
