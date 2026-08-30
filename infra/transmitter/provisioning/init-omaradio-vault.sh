@@ -34,10 +34,10 @@ trap 'err "Script aborted at line ${LINENO}. Check ${MOUNT_DIR:-the target direc
 # Config -- edit these arrays as stations/DJs are added. Empty DJ_NAMES is
 # fine; the loop below just skips it and creates the shared parent folder.
 # -------------------------------------------------------------------------
-STATIONS=("omaradio-prime")
+STATIONS=("one")
 DJ_NAMES=()   # e.g. DJ_NAMES=("dj-mox" "dj-relay")
 
-DEFAULT_MOUNT="/mnt/media-library"
+DEFAULT_MOUNT="/mnt/media_library"
 
 step "1. Target directory"
 
