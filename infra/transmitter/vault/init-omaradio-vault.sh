@@ -101,6 +101,11 @@ for station in "${STATIONS[@]}"; do
     ok "library/jingles/${station}/{idents,sweepers,intros,outros}"
 done
 
+for station in "${STATIONS[@]}"; do
+    mkdir -p "${MOUNT_DIR}/library/number-messages/${station}"
+    ok "library/number-messages/${station}"
+done
+
 mkdir -p "${MOUNT_DIR}/library/dj-segments"
 ok "library/dj-segments"
 if [ "${#DJ_NAMES[@]}" -gt 0 ]; then
@@ -131,7 +136,6 @@ step "5. Creating stations/ (cliamp-server on-air paths)"
 for station in "${STATIONS[@]}"; do
     mkdir -p "${MOUNT_DIR}/stations/${station}/on-air"
     mkdir -p "${MOUNT_DIR}/stations/${station}/ads"
-    mkdir -p "${MOUNT_DIR}/stations/${station}/number-messages"
     ok "stations/${station}/{on-air,ads,number-messages}"
 done
 
