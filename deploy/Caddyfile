@@ -1,0 +1,42 @@
+# Caddyfile for OmaRadio's stream endpoint (transmitter-one)
+#
+# Serves cliamp-server on BOTH plain HTTP (:80) and HTTPS (:443) so that
+# non-browser clients (cliamp, VLC, other Shoutcast-style players) can hit
+# the stream directly, while the OmaRadio.stream website's embedded player
+# uses HTTPS (required -- browsers block http:// streams as mixed content
+# on an https:// page).
+#
+# Listing both :80 and :443 explicitly in one site address list disables
+# Caddy's automatic http-to-https redirect for this block, so :80 stays a
+# real, directly usable stream endpoint instead of bouncing to https.
+#
+# TLS cert is issued via Let's Encrypt using Cloudflare DNS-01, so port 80
+# is never needed for an ACME HTTP-01 challenge and stays fully available
+# for stream traffic.
+#
+# Station routing (e.g. /one/stream) is handled entirely inside
+# cliamp-server's own config.toml -- Caddy just proxies the whole domain
+# to it, no path rewriting needed here.
+#
+# Requires:
+#   - Caddy built with the caddy-dns/cloudflare module:
+#       xcaddy build --with github.com/caddy-dns/cloudflare
+#   - CLOUDFLARE_API_TOKEN env var on the caddy service, scoped to
+#     Zone:Zone:Read + Zone:DNS:Edit on the omaradio.stream zone only.
+
+tx.omaradio.stream:80, tx.omaradio.stream:443 {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+
+	reverse_proxy localhost:8000 {
+		# Long-lived audio connections: flush immediately instead of
+		# buffering the response waiting for a full chunk.
+		flush_interval -1
+
+		# Preserve the real client IP through the proxy -- cliamp-server
+		# uses these for its GeoIP listener stats.
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+	}
+}
