@@ -1,0 +1,49 @@
+[server]
+# Bind address
+host = "0.0.0.0"
+# Listen port
+port = 8000
+
+[stream]
+metaint = 8192        # ICY metadata interval in bytes (standard)
+buffer_size = 512     # Ring buffer size in KB (~32s at 128kbps)
+intro_seen_ttl = 48    # Hours before an intro replays for the same IP
+
+[admin]
+password = ""          # TODO: set a real bearer token before going live
+                        # (empty = /status endpoints are open to anyone)
+
+[log]
+level = "info"
+
+[geo]
+db_path = ""            # Optional: path to GeoLite2-City.mmdb if/when you add GeoIP
+
+[stats]
+db_path = ""            # Optional: path to a SQLite db for listener stats
+
+# --- OmaRadio One --------------------------------------------------------
+# Station id "one" -> stream lives at tx.omaradio.stream/one/stream
+# (reverse proxy on tx.omaradio.stream still needs to route to this
+# server's host:port above -- that's a separate step from this config)
+[stations.one]
+name        = "OmaRadio One"
+description = "Omarchy Community Radio"
+genre       = "Talk/Variety"
+url         = "https://OmaRadio.stream"
+path        = "/mnt/media-library/stations/one/on-air"
+
+# CRITICAL: on-air/ is a hand-built, numerically-ordered symlink farm.
+# shuffle MUST stay false or your whole ordering scheme is ignored.
+shuffle     = false
+
+# on-air/ is intentionally flat (symlinks only, no subfolders) --
+# recursive doesn't matter here, but false keeps intent explicit.
+recursive   = false
+
+# Optional, once you're ready to use cliamp's native ad injection
+# instead of (or alongside) scheduling ad symlinks directly into on-air/:
+# ads_path           = "/mnt/media-library/library/ads"
+# ad_every_n_songs   = 6
+# ad_every_n_minutes = 0
+# ad_shuffle         = true
