@@ -23,9 +23,9 @@ set -euo pipefail
 
 # --- Configuration ---------------------------------------------------------
 REMOTE_USER="omaradio"
-REMOTE_HOST="transmitter-one"        # add an alias to ~/.ssh/config, or replace with the droplet's IP/DNS name
+REMOTE_HOST="transmitter-one.omaradio.stream"        # add an alias to ~/.ssh/config, or replace with the droplet's IP/DNS name
 REMOTE_VAULT="/mnt/media-library/library"
-LOCAL_LIBRARY="${LOCAL_LIBRARY:-$HOME/omaradio-library}"
+LOCAL_LIBRARY="${LOCAL_LIBRARY:-$HOME/Work/OmaRadio/media_library}"
 
 CATEGORIES=(music jingles dj-segments news-desk shoutouts ads)
 # ---------------------------------------------------------------------------
