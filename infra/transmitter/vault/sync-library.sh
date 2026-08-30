@@ -27,7 +27,7 @@ REMOTE_HOST="transmitter-one.omaradio.stream"        # add an alias to ~/.ssh/co
 REMOTE_VAULT="/mnt/media_library/library"
 LOCAL_LIBRARY="${LOCAL_LIBRARY:-$HOME/Work/OmaRadio/media_library/library}"
 
-CATEGORIES=(music jingles dj-segments news-desk shoutouts ads)
+CATEGORIES=(music jingles dj-segments news-desk shoutouts ads number-messages)
 # ---------------------------------------------------------------------------
 
 # --- Colors (fall back to plain text if the terminal doesn't support them) ---
