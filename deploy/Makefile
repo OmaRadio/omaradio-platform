@@ -15,6 +15,7 @@ BIN_DIR      := bin
 INSTALL_BIN  := /usr/local/bin/cliamp-server
 SERVICE      ?= cliamp-server
 SERVICE_UNIT := /etc/systemd/system/cliamp-server.service
+SERVICE_SRC  := platform/deploy/cliamp-server.service
 
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
@@ -45,7 +46,7 @@ cliamp-build: cliamp-fetch
 
 # One-time: install the systemd unit itself. Safe to re-run (idempotent).
 cliamp-service-install:
-	sudo cp cliamp-server.service $(SERVICE_UNIT)
+	sudo cp $(SERVICE_SRC) $(SERVICE_UNIT)
 	sudo systemctl daemon-reload
 	sudo systemctl enable cliamp-server
 	@echo "cliamp-server.service installed and enabled (not started yet)."
@@ -64,7 +65,7 @@ cliamp-update: cliamp-install
 # --- omaradio-platform: this repo, actively developed ---------------------
 
 platform-pull:
-	git pull
+	cd platform && git pull
 
 platform-install: platform-pull
 	# Add dependency install steps here as the pipeline solidifies, e.g.:
