@@ -8,19 +8,21 @@
 # Run from the omaradio-platform repo root as the `omaradio` user (sudo for
 # service control / binary install steps).
 
-VERSION     ?= v1.3.0
-CLIAMP_REPO := https://github.com/bjarneo/cliamp-server
-CLIAMP_DIR  := vendor/cliamp-server
-BIN_DIR     := bin
-INSTALL_BIN := /usr/local/bin/cliamp-server
-SERVICE     ?= cliamp-server
+VERSION      ?= v1.3.0
+CLIAMP_REPO  := https://github.com/bjarneo/cliamp-server
+CLIAMP_DIR   := vendor/cliamp-server
+BIN_DIR      := bin
+INSTALL_BIN  := /usr/local/bin/cliamp-server
+SERVICE      ?= cliamp-server
+SERVICE_UNIT := /etc/systemd/system/cliamp-server.service
 
 .PHONY: help deploy status logs \
-        cliamp-fetch cliamp-build cliamp-install cliamp-update \
+        cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
         platform-pull platform-install platform-restart
 
 help:
 	@echo "Targets:"
+	@echo "  make cliamp-service-install     - one-time: install + enable the systemd unit"
 	@echo "  make deploy                     - pull + redeploy omaradio-platform"
 	@echo "  make cliamp-update VERSION=vX.Y.Z - build+install a pinned cliamp-server release"
 	@echo "  make status                     - show status of managed services"
@@ -41,8 +43,15 @@ cliamp-build: cliamp-fetch
 	cd $(CLIAMP_DIR) && go build -o ../../$(BIN_DIR)/cliamp-server .
 	@echo "Built cliamp-server $(VERSION) -> $(BIN_DIR)/cliamp-server"
 
+# One-time: install the systemd unit itself. Safe to re-run (idempotent).
+cliamp-service-install:
+	sudo cp cliamp-server.service $(SERVICE_UNIT)
+	sudo systemctl daemon-reload
+	sudo systemctl enable cliamp-server
+	@echo "cliamp-server.service installed and enabled (not started yet)."
+
 cliamp-install: cliamp-build
-	sudo systemctl stop cliamp-server
+	-sudo systemctl stop cliamp-server
 	sudo install -m 755 $(BIN_DIR)/cliamp-server $(INSTALL_BIN)
 	sudo systemctl start cliamp-server
 	sudo systemctl status cliamp-server --no-pager

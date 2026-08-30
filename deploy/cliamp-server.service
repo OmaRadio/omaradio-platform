@@ -1,0 +1,17 @@
+[Unit]
+Description=cliamp-server - OmaRadio streaming server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=omaradio
+Group=omaradio
+ExecStart=/usr/local/bin/cliamp-server
+Restart=on-failure
+RestartSec=5
+WorkingDirectory=/opt/omaradio
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
