@@ -17,8 +17,12 @@ SERVICE      ?= cliamp-server
 SERVICE_UNIT := /etc/systemd/system/cliamp-server.service
 SERVICE_SRC  := platform/deploy/cliamp-server.service
 
+GEOIP_URL    := https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-Country.mmdb
+GEOIP_DB     := /opt/omaradio/geoip/GeoLite2-Country.mmdb
+
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
+        geoip-fetch geoip-install \
         platform-pull platform-install platform-restart
 
 help:
@@ -26,6 +30,7 @@ help:
 	@echo "  make cliamp-service-install     - one-time: install + enable the systemd unit"
 	@echo "  make deploy                     - pull + redeploy omaradio-platform"
 	@echo "  make cliamp-update VERSION=vX.Y.Z - build+install a pinned cliamp-server release"
+	@echo "  make geoip-install              - fetch + install latest GeoLite2-Country.mmdb"
 	@echo "  make status                     - show status of managed services"
 	@echo "  make logs SERVICE=cliamp-server - tail logs for a service"
 
@@ -61,6 +66,17 @@ cliamp-install: cliamp-build
 #   make cliamp-update VERSION=v1.4.0
 cliamp-update: cliamp-install
 	@echo "cliamp-server now running $(VERSION)"
+
+# --- geoip: GeoLite2-Country.mmdb, always tracks upstream's latest release -
+
+geoip-fetch:
+	mkdir -p $(BIN_DIR)
+	curl -fL -o $(BIN_DIR)/GeoLite2-Country.mmdb $(GEOIP_URL)
+	@echo "Fetched GeoLite2-Country.mmdb -> $(BIN_DIR)/GeoLite2-Country.mmdb"
+
+geoip-install: geoip-fetch
+	sudo install -o omaradio -g omaradio -m 644 -D $(BIN_DIR)/GeoLite2-Country.mmdb $(GEOIP_DB)
+	@echo "GeoLite2-Country.mmdb installed -> $(GEOIP_DB)"
 
 # --- omaradio-platform: this repo, actively developed ---------------------
 

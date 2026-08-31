@@ -17,7 +17,7 @@ password = ""          # TODO: set a real bearer token before going live
 level = "info"
 
 [geo]
-db_path = ""            # Optional: path to GeoLite2-City.mmdb if/when you add GeoIP
+db_path = "/opt/omaradio/geoip/GeoLite2-Country.mmdb"  # make geoip-install fetches/installs this
 
 [stats]
 db_path = ""            # Optional: path to a SQLite db for listener stats
