@@ -34,7 +34,7 @@ trap 'err "Script aborted at line ${LINENO}. Check ${MOUNT_DIR:-the target direc
 # Config -- edit these arrays as stations/DJs are added. Empty DJ_NAMES is
 # fine; the loop below just skips it and creates the shared parent folder.
 # -------------------------------------------------------------------------
-STATIONS=("one")
+STATIONS=("one" "enigma")
 DJ_NAMES=()   # e.g. DJ_NAMES=("dj-mox" "dj-relay")
 
 DEFAULT_MOUNT="/mnt/media_library"
