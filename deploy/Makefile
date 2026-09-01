@@ -21,6 +21,11 @@ GEOIP_URL    := https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/
 GEOIP_DB     := /opt/omaradio/geoip/GeoLite2-Country.mmdb
 STATS_DIR    := /opt/omaradio/stats
 
+CONFIG_SRC   := platform/deploy/config.toml
+CONFIG_DST   := /opt/omaradio/config.toml
+SECRETS_DIR  := /opt/omaradio/secrets
+SECRETS_ENV  := $(SECRETS_DIR)/cliamp.env
+
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
         geoip-fetch geoip-install \
@@ -53,14 +58,25 @@ cliamp-build: cliamp-fetch
 # One-time: install the systemd unit itself. Safe to re-run (idempotent).
 # Also ensures the stats db's parent directory exists -- cliamp-server
 # creates the .db file and schema itself on startup, but refuses to start
-# if $(STATS_DIR) is missing.
+# if $(STATS_DIR) is missing -- and provisions the config + secrets
+# locations the unit's ExecStart/EnvironmentFile point at.
 cliamp-service-install:
 	sudo cp $(SERVICE_SRC) $(SERVICE_UNIT)
 	sudo systemctl daemon-reload
 	sudo systemctl enable cliamp-server
 	sudo install -o omaradio -g omaradio -m 755 -d $(STATS_DIR)
+	sudo install -o omaradio -g omaradio -m 644 -D $(CONFIG_SRC) $(CONFIG_DST)
+	sudo install -o omaradio -g omaradio -m 700 -d $(SECRETS_DIR)
+	@if [ ! -f $(SECRETS_ENV) ]; then \
+		printf 'ADMIN_PASSWORD=\n' | sudo tee $(SECRETS_ENV) >/dev/null; \
+		sudo chown omaradio:omaradio $(SECRETS_ENV); \
+		sudo chmod 600 $(SECRETS_ENV); \
+		echo "Created empty $(SECRETS_ENV) -- set ADMIN_PASSWORD there, then restart cliamp-server."; \
+	else \
+		echo "$(SECRETS_ENV) already exists, leaving it untouched."; \
+	fi
 	@echo "cliamp-server.service installed and enabled (not started yet)."
-	@echo "$(STATS_DIR) ready for the stats db."
+	@echo "$(STATS_DIR) ready for the stats db; $(CONFIG_DST) installed from $(CONFIG_SRC)."
 
 cliamp-install: cliamp-build
 	-sudo systemctl stop cliamp-server

@@ -10,8 +10,11 @@ buffer_size = 512     # Ring buffer size in KB (~32s at 128kbps)
 intro_seen_ttl = 48    # Hours before an intro replays for the same IP
 
 [admin]
-password = ""          # TODO: set a real bearer token before going live
-                        # (empty = /status endpoints are open to anyone)
+# Leave blank here -- never commit a real password. The systemd unit passes
+# --password from ADMIN_PASSWORD in /opt/omaradio/secrets/cliamp.env (a file
+# outside git, provisioned by `make cliamp-service-install`), which
+# overrides this at startup. Empty = /status endpoints are open to anyone.
+password = ""
 
 [log]
 level = "info"

@@ -7,7 +7,11 @@ Wants=network-online.target
 Type=simple
 User=omaradio
 Group=omaradio
-ExecStart=/usr/local/bin/cliamp-server
+# Leading '-' makes this optional: service still starts (with admin auth
+# disabled) if the secret hasn't been provisioned yet. See config.toml's
+# [admin] comment and `make cliamp-service-install`.
+EnvironmentFile=-/opt/omaradio/secrets/cliamp.env
+ExecStart=/usr/local/bin/cliamp-server --config /opt/omaradio/config.toml --password ${ADMIN_PASSWORD}
 Restart=on-failure
 RestartSec=5
 WorkingDirectory=/opt/omaradio
