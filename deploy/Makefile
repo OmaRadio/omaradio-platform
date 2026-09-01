@@ -19,6 +19,7 @@ SERVICE_SRC  := platform/deploy/cliamp-server.service
 
 GEOIP_URL    := https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-Country.mmdb
 GEOIP_DB     := /opt/omaradio/geoip/GeoLite2-Country.mmdb
+STATS_DIR    := /opt/omaradio/stats
 
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
@@ -50,11 +51,16 @@ cliamp-build: cliamp-fetch
 	@echo "Built cliamp-server $(VERSION) -> $(BIN_DIR)/cliamp-server"
 
 # One-time: install the systemd unit itself. Safe to re-run (idempotent).
+# Also ensures the stats db's parent directory exists -- cliamp-server
+# creates the .db file and schema itself on startup, but refuses to start
+# if $(STATS_DIR) is missing.
 cliamp-service-install:
 	sudo cp $(SERVICE_SRC) $(SERVICE_UNIT)
 	sudo systemctl daemon-reload
 	sudo systemctl enable cliamp-server
+	sudo install -o omaradio -g omaradio -m 755 -d $(STATS_DIR)
 	@echo "cliamp-server.service installed and enabled (not started yet)."
+	@echo "$(STATS_DIR) ready for the stats db."
 
 cliamp-install: cliamp-build
 	-sudo systemctl stop cliamp-server

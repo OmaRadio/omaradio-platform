@@ -20,7 +20,7 @@ level = "info"
 db_path = "/opt/omaradio/geoip/GeoLite2-Country.mmdb"  # make geoip-install fetches/installs this
 
 [stats]
-db_path = ""            # Optional: path to a SQLite db for listener stats
+db_path = "/opt/omaradio/stats/listeners.db"  # dir created by make cliamp-service-install; cliamp-server creates the .db + schema itself
 
 # --- OmaRadio One --------------------------------------------------------
 # Station id "one" -> stream lives at tx.omaradio.stream/one/stream
