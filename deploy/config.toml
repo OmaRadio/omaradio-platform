@@ -50,3 +50,29 @@ recursive   = false
 # ad_every_n_songs   = 6
 # ad_every_n_minutes = 0
 # ad_shuffle         = true
+
+# --- OmaRadio Enigma --------------------------------------------------------
+# Station id "enigma" -> stream lives at tx.omaradio.stream/enigma/stream
+# (reverse proxy on tx.omaradio.stream still needs to route to this
+# server's host:port above -- that's a separate step from this config)
+[stations.one]
+name        = "OmaRadio Enigma"
+description = "Omarchy Directives"
+genre       = "Talk/Variety"
+url         = "https://OmaRadio.stream"
+path        = "/mnt/media_library/stations/enigma/on-air"
+
+# CRITICAL: on-air/ is a hand-built, numerically-ordered symlink farm.
+# shuffle MUST stay false or your whole ordering scheme is ignored.
+shuffle     = false
+
+# on-air/ is intentionally flat (symlinks only, no subfolders) --
+# recursive doesn't matter here, but false keeps intent explicit.
+recursive   = false
+
+# Optional, once you're ready to use cliamp's native ad injection
+# instead of (or alongside) scheduling ad symlinks directly into on-air/:
+# ads_path           = "/mnt/media-library/library/ads"
+# ad_every_n_songs   = 6
+# ad_every_n_minutes = 0
+# ad_shuffle         = true
