@@ -35,8 +35,8 @@ omaradio-platform/
 └── agents/               Agent definitions, one directory per role
     ├── it-guy/
     └── stations/
-        └── prime/         Per-station agents (station-manager, intern, djs)
+        └── one/           Per-station agents (station-manager, intern, djs)
 ```
 
-Only `prime` exists today; additional stations follow the same pattern under
+Only `one` exists today; additional stations follow the same pattern under
 `agents/stations/<station>/` and `infra/transmitter/deploy/stations/<station>/`.

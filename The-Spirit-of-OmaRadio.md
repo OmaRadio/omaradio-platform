@@ -4,9 +4,9 @@ OmaRadio is an Omarchy Linux focused pirate radio platform, operating out of a m
 
 It is available online at https://OmaRadio.stream
 
-The first OmaRadio station live to air is OmaRadio Prime.
+The first OmaRadio station live to air is OmaRadio One.
 
-OmaRadio Prime's focus is Omarchy community content including official release news & highlights, Omacom Foundation news, Omarchy Meetups, Omarchy Plugins, Discord highlights, etc.
+OmaRadio One's focus is Omarchy community content including official release news & highlights, Omacom Foundation news, Omarchy Meetups, Omarchy Plugins, Discord highlights, etc.
 
 The OmaRadio platform may feature additional stations in the future.
 
