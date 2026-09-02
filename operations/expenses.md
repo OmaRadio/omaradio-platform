@@ -12,5 +12,6 @@ New entries are inserted above the `—` divider row, which is kept directly abo
 |------|----------|-------------|--------------|--------------|
 | 2026-08-26 | Domain | omaradio.stream yearly | | $5.99 |
 | 2026-09-01 | Hosting | DO-AMS3 Monthly | | $0.97 |
+| 2026-09-02 | API | Anthropic credits | | $22.60 |
 | — | — | — | — | — |
-| | | **Total** | | **$6.96** |
+| | | **Total** | | **$29.56** |
