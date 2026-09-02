@@ -55,7 +55,7 @@ recursive   = false
 # Station id "enigma" -> stream lives at tx.omaradio.stream/enigma/stream
 # (reverse proxy on tx.omaradio.stream still needs to route to this
 # server's host:port above -- that's a separate step from this config)
-[stations.one]
+[stations.enigma]
 name        = "OmaRadio Enigma"
 description = "Omarchy Directives"
 genre       = "Talk/Variety"
