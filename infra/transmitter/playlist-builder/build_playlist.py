@@ -70,6 +70,27 @@ STATION_SHIFTS = {
     "one": {0: "dj-mox", 6: None, 12: "dj-nova", 18: None},
 }
 
+# DJs who get exactly ONE segment inserted into whichever block contains
+# their slot hour(s), independent of who (if anyone) owns that block.
+# Deliberately a separate structure from STATION_SHIFTS, not merged in --
+# STATION_SHIFTS is keyed by block_start.hour (only ever 0/6/12/18, the
+# only values owning_dj() looks up) and encodes exclusive whole-block
+# ownership; hours_utc here can be any hour (e.g. 8, 16) that ISN'T a
+# valid STATION_SHIFTS key at all, and a block can have zero-to-N periodic
+# insertions rather than exactly one owner. Looked up via .get(station, [])
+# -- unlike owning_dj()'s hard-fail, an unlisted station here just means
+# "no periodic DJs," which is a legitimate, not-a-bug station shape.
+#
+# With 6h blocks (starts at 0/6/12/18) and hours 8h apart, at most one
+# periodic hour can ever fall inside a single block -- e.g. for "one":
+# hour 0 -> the 00:00 block (offset 0s, i.e. right at block start), hour 8
+# -> the 06:00 block (offset 7200s), hour 16 -> the 12:00 block (offset
+# 14400s), and the 18:00 block gets NONE of the three -- confirmed
+# algebraically, not just intended; see find_periodic_insertions().
+STATION_PERIODIC_SEGMENTS = {
+    "one": [{"dj": "dj-vera", "hours_utc": (0, 8, 16)}],
+}
+
 BLOCK_SECONDS = 6 * 3600
 MAX_ENTRIES = 999  # safety cap -- see header comment on why digit width matters
 
@@ -101,6 +122,23 @@ def owning_dj(station: str, block_start: datetime) -> str | None:
     if shifts is None:
         raise SystemExit(f"No shift schedule configured for station '{station}' -- add it to STATION_SHIFTS.")
     return shifts.get(block_start.hour)
+
+
+def find_periodic_insertions(station: str, block_start: datetime, block_end: datetime) -> list[tuple[str, int]]:
+    """Returns (dj_slug, offset_seconds_from_block_start) for every
+    periodic DJ whose configured UTC hour-of-day falls within
+    [block_start, block_end). A list, not a single tuple|None, even though
+    today's config provably yields at most one hit per block (6h blocks,
+    8h-apart hours) -- costs nothing and doesn't silently drop a second
+    periodic DJ if one's added later with a tighter/overlapping schedule.
+    """
+    hits = []
+    for cfg in STATION_PERIODIC_SEGMENTS.get(station, []):
+        for hour in cfg["hours_utc"]:
+            candidate = block_start.replace(hour=hour, minute=0, second=0, microsecond=0)
+            if block_start <= candidate < block_end:
+                hits.append((cfg["dj"], int((candidate - block_start).total_seconds())))
+    return hits
 
 
 def list_segments(vault_root: Path, dj: str) -> list[Path]:
@@ -155,6 +193,30 @@ def pick_playable(pool: list[Path], last: Path | None) -> tuple[Path | None, flo
         tried.add(pick)
 
 
+def pick_latest(pool: list[Path]) -> tuple[Path | None, float | None]:
+    """For periodic DJs (see STATION_PERIODIC_SEGMENTS): pick the most
+    recent segment, not a random one. pick_playable()'s anti-repeat
+    exclusion only guards against repeating the immediately-previous pick
+    WITHIN one plan_block() run -- a periodic DJ is picked at most once
+    per run, so there's no in-run history to exclude against, and a
+    random pick could silently repeat the same segment across separate
+    runs (e.g. the same rundown airing at both 00:00 and 08:00) with zero
+    protection. Picking the latest is simpler AND more correct for a
+    "here's the latest news" persona: a freshly-approved segment is
+    surfaced the moment it exists, and a quiet period predictably reuses
+    the same most-recent segment rather than randomly resurfacing an
+    older one. list_segments() already returns sorted(glob(...)), and
+    segment filenames are timestamp-prefixed, so sorted order is
+    chronological -- pool[-1] is the latest, reversed(pool) walks newest
+    to oldest for probe-failure fallback."""
+    for candidate in reversed(pool):
+        dur = probe_duration(candidate)
+        if dur is not None:
+            return candidate, dur
+        logging.warning(f"ffprobe failed on {candidate}, trying next-most-recent.")
+    return None, None
+
+
 def slugify(text: str, max_len: int = 50) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return slug[:max_len].rstrip("-") or "untitled"
@@ -194,6 +256,38 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
     last_segment: Path | None = None
     last_track: Path | None = None
 
+    # Periodic DJs (e.g. a news anchor doing one rundown 3x/day, on a
+    # cadence that doesn't align with block boundaries) get exactly one
+    # segment spliced into this block's sequence once accumulated duration
+    # reaches their configured offset -- see STATION_PERIODIC_SEGMENTS /
+    # find_periodic_insertions(). Independent of block ownership above.
+    periodic_state = []
+    for periodic_dj, offset in find_periodic_insertions(station, block_start, block_end):
+        periodic_pool = list_segments(vault_root, periodic_dj)
+        if not periodic_pool:
+            logging.warning(
+                f"No approved segments found for periodic DJ {periodic_dj} -- "
+                f"skipping this occurrence (offset {offset}s)."
+            )
+            continue
+        periodic_state.append({"dj": periodic_dj, "offset": offset, "pool": periodic_pool, "inserted": False})
+
+    def _maybe_insert_periodic():
+        nonlocal total_seconds
+        for st in periodic_state:
+            if st["inserted"] or total_seconds < st["offset"]:
+                continue
+            st["inserted"] = True  # attempted either way -- never retried within this block
+            seg, dur = pick_latest(st["pool"])
+            if seg is None:
+                logging.warning(f"All candidates failed to probe for periodic DJ {st['dj']} -- skipping this occurrence.")
+                continue
+            entry = make_entry(len(entries) + 1, "segment", st["dj"], seg, dur)
+            entry["periodic"] = True
+            entries.append(entry)
+            total_seconds += dur
+            logging.info(f"Inserted periodic segment for {st['dj']} at offset {st['offset']}s (block total now {total_seconds:.0f}s).")
+
     while total_seconds < BLOCK_SECONDS:
         if len(entries) >= MAX_ENTRIES:
             raise SystemExit(
@@ -207,6 +301,7 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
                 entries.append(make_entry(len(entries) + 1, "segment", dj, seg, dur))
                 total_seconds += dur
                 last_segment = seg
+                _maybe_insert_periodic()
 
         for _ in range(random.randint(3, 6)):
             if len(entries) >= MAX_ENTRIES or total_seconds >= BLOCK_SECONDS:
@@ -217,6 +312,7 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
             entries.append(make_entry(len(entries) + 1, "track", None, track, dur))
             total_seconds += dur
             last_track = track
+            _maybe_insert_periodic()
 
     return {
         "schema_version": 1,
