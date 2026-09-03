@@ -1,0 +1,18 @@
+[Unit]
+Description=OmaRadio Mox/Nova auto-generator (Alan picks a topic -> brief -> generate -> auto-approve)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=omaradio
+Group=omaradio
+# Reuses the same secrets file already provisioned for Vera -- same
+# ANTHROPIC_API_KEY, same LOCAL_LIBRARY pointed at the vault. No new
+# secret needed for this pipeline.
+EnvironmentFile=/opt/omaradio/secrets/dj-segment.env
+ExecStart=/home/omaradio/.local/bin/uv run /opt/omaradio/platform/pipeline/dj-segment/auto_dj.py --all
+WorkingDirectory=/opt/omaradio/platform/pipeline/dj-segment
+
+[Install]
+WantedBy=multi-user.target

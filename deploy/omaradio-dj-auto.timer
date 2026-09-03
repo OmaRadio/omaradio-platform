@@ -1,0 +1,13 @@
+[Unit]
+Description=Run the Mox/Nova auto-generator once daily
+
+[Timer]
+# Once/day, arbitrary safe time -- unlike Vera's periodic on-air slots,
+# Mox/Nova's content sits in a pool pick_playable() cycles through
+# randomly across their whole 6h block (build_playlist.py), so there's no
+# shift-aligned timing to hit here.
+OnCalendar=*-*-* 10:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

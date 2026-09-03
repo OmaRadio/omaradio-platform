@@ -392,6 +392,10 @@ def main():
     parser.add_argument("--list-news", action="store_true",
                          help="Print available news-desk items (optionally --news-source-filter) and exit")
     parser.add_argument("--news-source-filter", default=None, help="With --list-news, only show this source slug")
+    parser.add_argument("--topic-id", default=None,
+                         help="Bookkeeping only -- recorded in script.json's meta so an automated caller "
+                              "(e.g. auto_dj.py) can track which topics.toml entry this segment used, for "
+                              "recently-used exclusion. Has no effect on the prompt or generation itself.")
     args = parser.parse_args()
 
     if args.list_voices:
@@ -447,6 +451,7 @@ def main():
             "usage": usage,
             "news_item_ids": [item["id"] for item in news_items] or None,
             "news_item_urls": [item["url"] for item in news_items] or None,
+            "topic_id": args.topic_id,
         },
     }
     (out_dir / "script.json").write_text(json.dumps(script_json, indent=2), encoding="utf-8")

@@ -1,0 +1,55 @@
+# Topic backlog for auto_dj.py -- Alan (Station Manager) picks from and
+# writes an actual brief around one of these each cycle, rather than
+# generating segments from a mechanical pull or an ungrounded LLM
+# improvisation. Deliberately lightweight -- "writer's room prompts," not
+# finished briefs; Alan does the real interpretive work of turning a seed
+# into a specific, DJ-voiced brief.
+#
+# `djs` is optional -- omit it (or leave empty) for a topic either DJ can
+# take. Restock this periodically: auto_dj.py skips a DJ's cycle and logs
+# a warning if every entry suited to them has been used recently (see
+# RECENT_SEGMENTS_WINDOW in auto_dj.py), rather than repeating stale ground.
+
+[[topic]]
+id = "omarchy-tiling-wm-philosophy"
+text = "Riff on why Omarchy's tiling-first design forces a different relationship with your desktop than a traditional floating WM -- the tradeoff of a learning curve for real control."
+
+[[topic]]
+id = "why-a-pirate-radio-station-for-a-linux-distro"
+text = "Play with the inherent absurdity/charm of a pirate radio station existing to cover a Linux distro -- why does this format fit Omarchy's culture better than a normal tech podcast would?"
+
+[[topic]]
+id = "keyboard-driven-workflow-appreciation"
+text = "A short love letter to keyboard-driven workflows -- the specific feeling of never reaching for a mouse, without turning it into a dry productivity lecture."
+
+[[topic]]
+id = "omarchy-plugin-ecosystem-vibe-check"
+text = "General vibe-check riff on the Omarchy plugin ecosystem -- the fun of a small, opinionated plugin scene versus a sprawling one."
+
+[[topic]]
+id = "mox-late-night-signal-noise"
+djs = ["dj-mox"]
+text = "Something about the specific mood of broadcasting into the dark -- the idea that a late-night signal reaches a different, smaller, more dedicated kind of listener than daytime radio ever does."
+
+[[topic]]
+id = "mox-dispatches-from-the-underground-bit"
+djs = ["dj-mox"]
+text = "Lean into Mox's 'dispatches from the underground' framing on something completely mundane -- treat an ordinary Omarchy config tweak like smuggled intel."
+
+[[topic]]
+id = "nova-ship-location-bit"
+djs = ["dj-nova"]
+text = "Lean into the running gag about never confirming where Transmitter-One is broadcasting from today -- invent a fun, vague new near-miss or false lead."
+
+[[topic]]
+id = "nova-first-boot-energy"
+djs = ["dj-nova"]
+text = "Capture that specific 'just installed a fresh OS' energy -- the small thrill of a clean system, in Nova's genuinely-delighted register."
+
+[[topic]]
+id = "ai-dj-staff-in-fiction-not-meta"
+text = "Something in-universe about being part of a ragtag crew running a station together -- family-like camaraderie per the Spirit doc -- without ever breaking the fourth wall about being AI-generated."
+
+[[topic]]
+id = "open-source-patronage-culture"
+text = "A general riff on what it means for a community to directly fund the tools it depends on -- the patronage-model angle, kept broad rather than tied to one specific announcement."

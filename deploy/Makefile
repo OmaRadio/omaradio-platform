@@ -55,12 +55,18 @@ VERA_AUTO_TIMER_UNIT   := /etc/systemd/system/omaradio-vera-auto.timer
 VERA_AUTO_SECRETS_ENV  := $(SECRETS_DIR)/dj-segment.env
 KOKORO_CACHE_DIR        := $(HOME)/.cache/omaradio/kokoro
 
+DJ_AUTO_SERVICE_SRC    := platform/deploy/omaradio-dj-auto.service
+DJ_AUTO_TIMER_SRC      := platform/deploy/omaradio-dj-auto.timer
+DJ_AUTO_SERVICE_UNIT   := /etc/systemd/system/omaradio-dj-auto.service
+DJ_AUTO_TIMER_UNIT     := /etc/systemd/system/omaradio-dj-auto.timer
+
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
         geoip-fetch geoip-install \
         platform-pull platform-install platform-restart \
         playlist-builder-service-install \
-        vera-auto-service-install
+        vera-auto-service-install \
+        dj-auto-service-install
 
 help:
 	@echo "Targets:"
@@ -70,6 +76,7 @@ help:
 	@echo "  make geoip-install              - fetch + install latest GeoLite2-Country.mmdb"
 	@echo "  make playlist-builder-service-install - one-time: install + enable the 6-hourly playlist builder timer"
 	@echo "  make vera-auto-service-install   - one-time: install + enable Vera's news-auto-generator timer"
+	@echo "  make dj-auto-service-install     - one-time: install + enable Mox/Nova's daily auto-generator timer"
 	@echo "  make status                     - show status of managed services"
 	@echo "  make logs SERVICE=cliamp-server - tail logs for a service"
 
@@ -195,6 +202,37 @@ vera-auto-service-install:
 	@echo "Verify with 'uv run auto_vera.py --dry-run' and a manual"
 	@echo "'sudo systemctl start omaradio-vera-auto.service' first, then:"
 	@echo "  sudo systemctl enable --now omaradio-vera-auto.timer"
+
+# --- dj-auto: Alan picks a topic + writes a brief for Mox/Nova, daily -----
+#
+# One-time: install the systemd unit + timer. Safe to re-run (idempotent).
+# Reuses the same $(VERA_AUTO_SECRETS_ENV) already provisioned for Vera --
+# no new secret needed, same ANTHROPIC_API_KEY/LOCAL_LIBRARY. Enables the
+# timer but does NOT start it -- same first-rollout discipline as every
+# other timer here: this one auto-approves (no review step, see
+# auto_dj.py's own docstring), so the first unattended run should be an
+# explicit human go-ahead. Verify with 'uv run auto_dj.py --dj dj-mox
+# --dry-run' and a manual 'systemctl start omaradio-dj-auto.service' first,
+# then:
+#   sudo systemctl enable --now omaradio-dj-auto.timer
+
+dj-auto-service-install:
+	@command -v uv >/dev/null || [ -x "$(HOME)/.local/bin/uv" ] || { echo "uv not found -- install it for the omaradio user first (see pipeline/dj-segment/README.md)"; exit 1; }
+	@[ -f "$(KOKORO_CACHE_DIR)/kokoro-v1.0.onnx" ] && [ -f "$(KOKORO_CACHE_DIR)/voices-v1.0.bin" ] || { \
+		echo "Kokoro model weights not found under $(KOKORO_CACHE_DIR) -- fetch them first:"; \
+		echo "  wget -P $(KOKORO_CACHE_DIR) https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"; \
+		echo "  wget -P $(KOKORO_CACHE_DIR) https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"; \
+		exit 1; \
+	}
+	@[ -f "$(VERA_AUTO_SECRETS_ENV)" ] || { echo "$(VERA_AUTO_SECRETS_ENV) not found -- run 'make vera-auto-service-install' first (this target reuses that secret)."; exit 1; }
+	sudo cp $(DJ_AUTO_SERVICE_SRC) $(DJ_AUTO_SERVICE_UNIT)
+	sudo cp $(DJ_AUTO_TIMER_SRC) $(DJ_AUTO_TIMER_UNIT)
+	sudo systemctl daemon-reload
+	sudo systemctl enable omaradio-dj-auto.timer
+	@echo "omaradio-dj-auto.timer installed and enabled (not started yet)."
+	@echo "Verify with 'uv run auto_dj.py --dj dj-mox --dry-run' and a manual"
+	@echo "'sudo systemctl start omaradio-dj-auto.service' first, then:"
+	@echo "  sudo systemctl enable --now omaradio-dj-auto.timer"
 
 # --- omaradio-platform: this repo, actively developed ---------------------
 
