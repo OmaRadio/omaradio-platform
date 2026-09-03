@@ -1,0 +1,22 @@
+# DJ persona -- machine-readable fields consumed directly by
+# pipeline/dj-segment/generate_segment.py. Edit voice/speed freely; changing
+# them takes effect on the next generated segment, no code change needed.
+
+name    = "Vera"
+slug    = "dj-vera"
+station = "one"
+
+# kokoro-onnx voice id. Run `uv run pipeline/dj-segment/generate_segment.py
+# --list-voices` for all 54 options. American, clear/measured register --
+# distinct from Mox's British bm_george, Alan's deeper am_onyx, Nova's
+# brighter af_nova, and Relay's af_river. Starting guess, not a locked-in
+# choice; audition and swap freely.
+voice = "af_sarah"
+lang  = "en-us"
+
+# kokoro speed multiplier, 1.0 = kokoro's default pace. Slightly under
+# normal -- a measured, clear-diction anchor pace, distinct from Nova's
+# quicker 1.05 and closer to (but not as slow as) Alan's 0.93.
+speed = 0.96
+
+tagline = "The rundown, straight, three times a day."
