@@ -157,12 +157,14 @@ which can't prompt) -- the symlink change itself still succeeds either way.
 
 ## Non-goals (deferred)
 
-News connectors (web/Twitter/Discord), the Intern role and its
-"Screening Rules" (referenced in `The-Spirit-of-OmaRadio.md`, not yet
-written), song-credit announcements, genre-aware/DJ-hosted-genre music
-selection, and automated Alan/Relay scheduling are all out of scope for
-this pipeline (the playlist builder itself only knows about Mox's and
-Nova's owned shift blocks -- see `infra/transmitter/playlist-builder/build_playlist.py`).
-`--brief` is today's manual stand-in for what a Station Manager would eventually hand a
-DJ; `library/news-desk/` already exists in the vault for when the Intern
-role lands.
+Twitter/X and Discord connectors (web/RSS-Atom is built -- see
+`pipeline/news-intern/`), the Intern role's "Screening Rules" (referenced
+in `The-Spirit-of-OmaRadio.md`, not yet written -- source-list membership
+is the screening for now), song-credit announcements, genre-aware/
+DJ-hosted-genre music selection, and automated Alan/Relay scheduling are
+all out of scope for this pipeline (the playlist builder itself only knows
+about Mox's and Nova's owned shift blocks -- see
+`infra/transmitter/playlist-builder/build_playlist.py`). `--brief` is
+still required alongside `--news-item` and sets angle/tone/prominence --
+Alan automatically routing news to DJs, and DJs having "ambient" news
+awareness without explicit `--news-item` selection, are both future work.

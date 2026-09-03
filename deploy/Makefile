@@ -15,8 +15,13 @@
 # the fork, which mirrors upstream tags plus our own `-omaradio.N` ones.
 # To go back to stock upstream, repoint CLIAMP_REPO and VERSION.
 #
-# Run from the omaradio-platform repo root as the `omaradio` user (sudo for
-# service control / binary install steps).
+# Run as the `omaradio` user (sudo for service control / binary install
+# steps) from /opt/omaradio -- the PARENT of this repo's checkout at
+# /opt/omaradio/platform, not from inside platform/ itself. That's why
+# SERVICE_SRC/CONFIG_SRC/etc. below are prefixed `platform/...`. Confirmed
+# 2026-09-03 that this checkout is real but easy to lose track of -- it
+# had gone stale for days before anyone noticed; `cd /opt/omaradio/platform
+# && git pull` before relying on anything here.
 
 VERSION      ?= v1.4.3-omaradio.2
 CLIAMP_REPO  := https://github.com/choyer/cliamp-server

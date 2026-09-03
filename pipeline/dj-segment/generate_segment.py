@@ -89,6 +89,10 @@ PROMPT_PREAMBLE = Path(__file__).resolve().parent / "prompts" / "system_prompt_t
 DEFAULT_KOKORO_DIR = Path.home() / ".cache" / "omaradio" / "kokoro"
 DEFAULT_LOCAL_LIBRARY = Path.home() / "Work" / "OmaRadio" / "media_library" / "library"
 
+
+def local_library() -> Path:
+    return Path(os.environ.get("LOCAL_LIBRARY", DEFAULT_LOCAL_LIBRARY))
+
 # Same voice table as the sibling omaradio-numbers-station script, kept in
 # sync manually -- see persona.toml's `voice` field comment.
 VOICES_BY_LANG = {
@@ -171,7 +175,49 @@ def load_persona(dj_dir: Path) -> tuple[dict, str]:
     return persona, persona_md
 
 
-def build_system_prompt(persona: dict, persona_md: str) -> str:
+def find_news_item(item_id: str) -> dict:
+    """Resolve a --news-item value to its stored JSON, written by
+    pipeline/news-intern/fetch_news.py under $LOCAL_LIBRARY/news-desk/.
+    "latest" picks the most recently fetched item across all sources."""
+    news_dir = local_library() / "news-desk"
+    if item_id == "latest":
+        candidates = sorted(news_dir.glob("*/*.json"))
+        if not candidates:
+            print(f"[!] No news-desk items found under {news_dir} -- run pipeline/news-intern/fetch_news.py first.", file=sys.stderr)
+            raise SystemExit(1)
+        items = [json.loads(p.read_text(encoding="utf-8")) for p in candidates]
+        return max(items, key=lambda i: i["fetched_at"])
+
+    matches = list(news_dir.glob(f"*/{item_id}.json"))
+    if not matches:
+        print(f"[!] No news-desk item found with id '{item_id}' under {news_dir}", file=sys.stderr)
+        print("    Run --list-news to see what's available.", file=sys.stderr)
+        raise SystemExit(1)
+    return json.loads(matches[0].read_text(encoding="utf-8"))
+
+
+def print_news_list(source: str | None = None, limit: int = 20):
+    news_dir = local_library() / "news-desk"
+    if not news_dir.exists():
+        print("No news-desk items yet -- run pipeline/news-intern/fetch_news.py first.")
+        return
+    items = []
+    for date_dir in sorted(news_dir.iterdir(), reverse=True):
+        if not date_dir.is_dir():
+            continue
+        for item_file in sorted(date_dir.glob("*.json"), reverse=True):
+            item = json.loads(item_file.read_text(encoding="utf-8"))
+            if source and item["source"] != source:
+                continue
+            items.append((date_dir.name, item))
+    if not items:
+        print("No matching news-desk items.")
+        return
+    for date_name, item in items[:limit]:
+        print(f"{item['id']:<45} {date_name}  {item['source']:<20} \"{item['title']}\"")
+
+
+def build_system_prompt(persona: dict, persona_md: str, news_items: list[dict] | None = None) -> str:
     preamble = PROMPT_PREAMBLE.read_text(encoding="utf-8")
     spirit = SPIRIT_DOC.read_text(encoding="utf-8")
     parts = [
@@ -181,6 +227,19 @@ def build_system_prompt(persona: dict, persona_md: str) -> str:
         f"=== DJ persona: {persona['name']} ({persona['slug']}) ===",
         persona_md or f"(No persona.md written yet for {persona['slug']} -- write in a neutral, on-brand OmaRadio voice.)",
     ]
+    if news_items:
+        blocks = [
+            f"-- {item['source_name']}, {item.get('published_at') or item['fetched_at']} --\n"
+            f"{item['title']}\n{item['url']}\n\n{item['summary']}"
+            for item in news_items
+        ]
+        parts.append(
+            "=== News desk items (via Relay) ===\n\n" + "\n\n".join(blocks) +
+            "\n\nUse these as factual grounding for the segment -- treat them as verified, "
+            "don't invent details beyond them. They don't need equal weight or need to be "
+            "the segment's main topic -- the brief below sets the angle/tone and how "
+            "prominently (if at all beyond a passing mention) each one should feature."
+        )
     return "\n\n".join(parts)
 
 
@@ -325,18 +384,32 @@ def main():
                          help="Override the review output root (default: sibling of $LOCAL_LIBRARY, "
                               f"i.e. {DEFAULT_LOCAL_LIBRARY.parent / 'review'})")
     parser.add_argument("--list-voices", action="store_true", help="Print all kokoro-onnx voices and exit")
+    parser.add_argument("--news-item", action="append", dest="news_items", metavar="ID_OR_LATEST",
+                         help="Pull a stored news-desk item in as factual grounding (see "
+                              "pipeline/news-intern/fetch_news.py). Repeatable -- a segment can "
+                              "reference more than one item. \"latest\" picks the most recently "
+                              "fetched item. --brief still sets the angle/tone/prominence.")
+    parser.add_argument("--list-news", action="store_true",
+                         help="Print available news-desk items (optionally --news-source-filter) and exit")
+    parser.add_argument("--news-source-filter", default=None, help="With --list-news, only show this source slug")
     args = parser.parse_args()
 
     if args.list_voices:
         print_voice_list()
         return
 
+    if args.list_news:
+        print_news_list(source=args.news_source_filter)
+        return
+
     if not args.dj or not args.brief:
-        parser.error("--dj and --brief are required (unless --list-voices)")
+        parser.error("--dj and --brief are required (unless --list-voices/--list-news)")
+
+    news_items = [find_news_item(item_id) for item_id in (args.news_items or [])]
 
     dj_dir = find_dj_dir(args.dj)
     persona, persona_md = load_persona(dj_dir)
-    system_prompt = build_system_prompt(persona, persona_md)
+    system_prompt = build_system_prompt(persona, persona_md, news_items=news_items)
 
     if args.dry_run:
         print("=== System prompt ===\n")
@@ -358,8 +431,7 @@ def main():
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     segment_id = f"{timestamp}-{persona['slug']}-{slugify(result['title'])}"
 
-    local_library = Path(os.environ.get("LOCAL_LIBRARY", DEFAULT_LOCAL_LIBRARY))
-    review_root = args.review_dir or (local_library.parent / "review")
+    review_root = args.review_dir or (local_library().parent / "review")
     out_dir = review_root / "dj-segments" / persona["slug"] / segment_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -373,6 +445,8 @@ def main():
             "created_at": timestamp,
             "segment_id": segment_id,
             "usage": usage,
+            "news_item_ids": [item["id"] for item in news_items] or None,
+            "news_item_urls": [item["url"] for item in news_items] or None,
         },
     }
     (out_dir / "script.json").write_text(json.dumps(script_json, indent=2), encoding="utf-8")

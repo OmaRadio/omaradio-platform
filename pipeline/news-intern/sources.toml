@@ -1,0 +1,44 @@
+# Orchestrator-approved news sources for Relay's news-desk fetcher
+# (fetch_news.py). Each [[source]] is an RSS or Atom feed URL --
+# feedparser handles both uniformly, so `format` here is informational
+# (used for logging/debugging), not load-bearing for parsing.
+#
+# enabled = false pauses a source without deleting its config (e.g. if it
+# gets too noisy or starts erroring) -- prefer this over commenting out,
+# so the Orchestrator's reasoning for excluding it stays visible.
+#
+# `category` drives fetch_news.py's summarization strategy -- see its
+# header comment. "news" items get their feed description used directly
+# (already tight, human-written); "release" items get a real Claude
+# summarization call (raw changelog HTML isn't broadcast-ready as-is).
+
+[[source]]
+slug     = "omarchy-news"
+name     = "Omarchy News"
+url      = "https://omarchy.org/news/rss.xml"
+format   = "rss"
+category = "news"
+enabled  = true
+
+[[source]]
+slug     = "omarchy-releases"
+name     = "Omarchy GitHub Releases"
+url      = "https://github.com/omacom/omarchy/releases.atom"
+format   = "atom"
+category = "release"
+enabled  = true
+
+# Commits feed (github.com/omacom/omarchy/commits/quattro.atom) deliberately
+# excluded, not just forgotten:
+#   1. "quattro" is the CURRENT default branch, not a stable name -- this
+#      repo has already renamed its default branch once. Hardcoding a
+#      branch into committed config is fragile: a future rename (e.g. a
+#      "v5" branch) breaks this silently -- the feed URL still 200s, it
+#      just quietly goes stale, no error to notice.
+#   2. Commit-level granularity is a poor signal-to-noise fit here --
+#      multiple commits/merges land per day, almost all uninteresting to a
+#      listener, versus releases.atom's handful of meaningful entries per
+#      month. A radio station doesn't need commit-by-commit awareness.
+# If commit-level awareness is wanted later, treat "resolve the current
+# default branch" as its own small problem (e.g. via the GitHub API at
+# fetch time) rather than hardcoding a branch name again.

@@ -32,26 +32,31 @@ everything below is Relay-specific texture on top of it.
 This is the part of the role the audience never hears directly, but it's
 the one that matters most:
 
-- Relay watches a defined list of Omarchy news sources -- websites the
-  Orchestrator maintains -- for release news, community happenings, and
-  anything else worth the station's attention.
+- Relay watches a defined list of Omarchy news sources -- the
+  Orchestrator-curated `pipeline/news-intern/sources.toml`, currently RSS
+  and Atom feeds (Omarchy's own news feed, GitHub releases) -- for release
+  news, community happenings, and anything else worth the station's
+  attention. **Built**: `pipeline/news-intern/fetch_news.py fetch`.
 - Once the platform's Discord bot and Twitter/X API access exist (not
   built yet), Relay is the one who receives what those connectors surface
   -- Discord chatter, social posts, whatever counts as a signal worth
   passing on.
 - Everything Relay takes in gets screened against the Screening Rules
   (referenced in `The-Spirit-of-OmaRadio.md`, still to be written) before
-  it goes anywhere near a DJ.
+  it goes anywhere near a DJ -- for now, being on the approved source list
+  *is* the screening; no per-item content filtering exists yet.
 - What survives screening gets summarized -- Relay's whole value is
   turning a pile of raw links and chatter into something a DJ can
-  actually use without doing their own research first.
+  actually use without doing their own research first. **Built**: cheap
+  items (an already-tight feed description) get used directly; items that
+  need real summarizing (e.g. a full release changelog) get one Claude
+  call. Stored under `library/news-desk/`.
 - That summarized material becomes available to every DJ as a content
-  source, requested through the Station Manager rather than DJs pulling
-  from Relay directly -- Alan is the one who decides what gets routed
-  where and when, per his role in `The-Spirit-of-OmaRadio.md`.
-- None of the actual fetching/summarizing pipeline exists yet -- this
-  section documents intent for when it's built, not current behavior.
-  Until then, "what Relay found" is fed in manually.
+  source. **Partially built**: `generate_segment.py --news-item <id>`
+  (repeatable) pulls specific items in as grounding for a segment -- but
+  it's still the Orchestrator explicitly picking which item(s), not Alan
+  routing them automatically per his role in `The-Spirit-of-OmaRadio.md`,
+  and not "ambient" awareness a DJ has by default. Both remain future work.
 
 ## Boundaries (in addition to the platform-wide rules)
 
