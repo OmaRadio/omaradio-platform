@@ -70,6 +70,20 @@ DJS_GLOB = "staff/stations/*/djs/{slug}"
 SINGULAR_ROLE_GLOB = "staff/stations/*/{role}"
 SINGULAR_ROLES = ("station-manager", "intern")
 SPIRIT_DOC = REPO_ROOT / "The-Spirit-of-OmaRadio.md"
+
+# EBU R128 loudness normalization target for rendered segments (see
+# render_audio()). -16 LUFS (the generic podcast/spoken-word convention)
+# was tried first and measured ~4-6 LU quieter than this library's actual
+# music -- ffmpeg's loudnorm on a sample of tracks across genres measured
+# roughly -9 to -14 LUFS integrated, averaging ~-12 LUFS (this library is
+# mastered loud, not streaming-normalized). -12 matches that measured
+# average so segments read at the same perceived loudness as the music
+# around them, rather than a generic external convention. Re-measure
+# (`ffmpeg -i <file> -af loudnorm=print_format=json -f null -`, read
+# input_i) and adjust if the music library's mastering changes.
+LOUDNORM_TARGET_LUFS = -12
+LOUDNORM_TRUE_PEAK = -1.0
+LOUDNORM_RANGE = 11
 PROMPT_PREAMBLE = Path(__file__).resolve().parent / "prompts" / "system_prompt_template.md"
 
 DEFAULT_KOKORO_DIR = Path.home() / ".cache" / "omaradio" / "kokoro"
@@ -261,7 +275,17 @@ def render_audio(text: str, out_mp3: Path, voice: str, lang: str, speed: float,
     tmp_wav = out_mp3.with_suffix(".tmp.wav")
     sf.write(tmp_wav, samples, sample_rate)
 
+    # Loudness-normalize (EBU R128 via ffmpeg's loudnorm) rather than just
+    # boosting gain -- TTS speech and mastered music have very different
+    # dynamic ranges, so a plain gain increase can still read as quieter
+    # than the music library, or clip. -16 LUFS is the common podcast/
+    # spoken-word target and lands close to typical mastered-music
+    # loudness. Single-pass (one ffmpeg call, no separate analysis pass) --
+    # good enough for short, fairly uniform TTS segments; revisit with
+    # two-pass loudnorm (analyze first, then normalize using its measured
+    # values) if single-pass isn't landing close enough in practice.
     cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(tmp_wav),
+           "-af", f"loudnorm=I={LOUDNORM_TARGET_LUFS}:TP={LOUDNORM_TRUE_PEAK}:LRA={LOUDNORM_RANGE}",
            "-codec:a", "libmp3lame", "-b:a", "192k", str(out_mp3)]
     result = subprocess.run(cmd, capture_output=True, text=True)
     tmp_wav.unlink(missing_ok=True)
