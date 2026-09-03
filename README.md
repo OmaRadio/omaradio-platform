@@ -25,18 +25,18 @@ The platform uses the following roles to define responsibilities, determine task
 omaradio-platform/
 ├── branding/           Platform and station brand assets
 ├── www/                Public marketing website featuring streaming web player, segment schedule and info about each dj
-├── scheduler/           Task dispatch and agent orchestration service
+├── scheduler/           Task dispatch and staff orchestration service
 │   ├── src/              Application source
 │   └── db/               Schema and migrations
 ├── infra/               Infrastructure and deployment
 │   └── transmitter/
 │       ├── provisioning/   Server/environment provisioning
 │       └── deploy/         Deploy configs (compose, per-station settings)
-└── agents/               Agent definitions, one directory per role
+└── staff/                Staff definitions, one directory per role
     ├── it-guy/
     └── stations/
-        └── one/           Per-station agents (station-manager, intern, djs)
+        └── one/           Per-station staff (station-manager, intern, djs)
 ```
 
 Only `one` exists today; additional stations follow the same pattern under
-`agents/stations/<station>/` and `infra/transmitter/deploy/stations/<station>/`.
+`staff/stations/<station>/` and `infra/transmitter/deploy/stations/<station>/`.

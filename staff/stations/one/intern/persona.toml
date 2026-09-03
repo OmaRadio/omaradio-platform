@@ -1,0 +1,22 @@
+# Intern persona -- also usable as an on-air voice via
+# generate_segment.py --dj relay (fill-in only, when a regular DJ isn't
+# available -- see persona.md's boundaries). Matched by `slug` below, not
+# by directory name -- see find_dj_dir() in generate_segment.py.
+
+name    = "Relay"
+slug    = "relay"
+station = "one"
+role    = "intern"
+
+# kokoro-onnx voice id. Run `uv run pipeline/dj-segment/generate_segment.py
+# --list-voices` for all 54 options. American, unused elsewhere yet --
+# distinct from Mox (bm_george), Alan (am_onyx), Nova (af_nova). Starting
+# guess, not a locked-in choice; audition and swap freely.
+voice = "af_river"
+lang  = "en-us"
+
+# kokoro speed multiplier, 1.0 = kokoro's default pace -- kept at default,
+# neither rushed nor deliberately slow.
+speed = 1.0
+
+tagline = "Everything that reaches Transmitter-One reaches it through Relay first."

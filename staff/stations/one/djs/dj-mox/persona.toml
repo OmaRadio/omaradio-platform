@@ -1,0 +1,19 @@
+# DJ persona -- machine-readable fields consumed directly by
+# pipeline/dj-segment/generate_segment.py. Edit voice/speed freely; changing
+# them takes effect on the next generated segment, no code change needed.
+
+name    = "Mox"
+slug    = "dj-mox"
+station = "one"
+
+# kokoro-onnx voice id. Run `uv run pipeline/dj-segment/generate_segment.py
+# --list-voices` for all 54 options. bm_* = British English male -- picked
+# for a moody, late-night "signal from nowhere" read; audition and swap
+# freely, this is a starting guess, not a locked-in choice.
+voice = "bm_george"
+lang  = "en-gb"
+
+# kokoro speed multiplier, 1.0 = kokoro's default pace.
+speed = 0.97
+
+tagline = "Late-night signal out of Transmitter-One."

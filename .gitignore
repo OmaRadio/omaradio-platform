@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+
+# Secrets
+.env
+
+# Kokoro model weights -- ~350MB, fetched separately (see pipeline/dj-segment/README.md)
+*.onnx
+*.bin
+
+# Generated audio -- pipeline output, not source
+pipeline/**/*.mp3
+pipeline/**/*.wav

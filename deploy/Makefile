@@ -26,10 +26,18 @@ CONFIG_DST   := /opt/omaradio/config.toml
 SECRETS_DIR  := /opt/omaradio/secrets
 SECRETS_ENV  := $(SECRETS_DIR)/cliamp.env
 
+PLAYLIST_SRC_DIR      := platform/infra/transmitter/playlist-builder
+PLAYLIST_DST_DIR       := /opt/omaradio/playlist-builder
+PLAYLIST_SERVICE_SRC   := platform/deploy/omaradio-playlist-builder@.service
+PLAYLIST_TIMER_SRC     := platform/deploy/omaradio-playlist-builder@.timer
+PLAYLIST_SERVICE_UNIT  := /etc/systemd/system/omaradio-playlist-builder@.service
+PLAYLIST_TIMER_UNIT    := /etc/systemd/system/omaradio-playlist-builder@.timer
+
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
         geoip-fetch geoip-install \
-        platform-pull platform-install platform-restart
+        platform-pull platform-install platform-restart \
+        playlist-builder-service-install
 
 help:
 	@echo "Targets:"
@@ -37,6 +45,7 @@ help:
 	@echo "  make deploy                     - pull + redeploy omaradio-platform"
 	@echo "  make cliamp-update VERSION=vX.Y.Z - build+install a pinned cliamp-server release"
 	@echo "  make geoip-install              - fetch + install latest GeoLite2-Country.mmdb"
+	@echo "  make playlist-builder-service-install - one-time: install + enable the 6-hourly playlist builder timer"
 	@echo "  make status                     - show status of managed services"
 	@echo "  make logs SERVICE=cliamp-server - tail logs for a service"
 
@@ -99,6 +108,28 @@ geoip-fetch:
 geoip-install: geoip-fetch
 	sudo install -o omaradio -g omaradio -m 644 -D $(BIN_DIR)/GeoLite2-Country.mmdb $(GEOIP_DB)
 	@echo "GeoLite2-Country.mmdb installed -> $(GEOIP_DB)"
+
+# --- playlist-builder: rebuilds on-air/ every 6h (00/06/12/18 UTC) --------
+#
+# One-time: install the script + templated service/timer units. Safe to
+# re-run (idempotent). Enables the timer but deliberately does NOT start
+# it -- the first unattended restart of the live stream should be an
+# explicit human go-ahead, not a `make` side effect. Verify with the
+# script's --dry-run/--plan-only/--no-restart modes first (see
+# infra/transmitter/playlist-builder/build_playlist.py's own docstring),
+# then: sudo systemctl start omaradio-playlist-builder@one.timer
+
+playlist-builder-service-install:
+	@command -v ffprobe >/dev/null || { echo "ffprobe not found -- run: sudo apt install ffmpeg"; exit 1; }
+	sudo install -o omaradio -g omaradio -m 755 -d $(PLAYLIST_DST_DIR)
+	sudo install -o omaradio -g omaradio -m 755 $(PLAYLIST_SRC_DIR)/build_playlist.py $(PLAYLIST_DST_DIR)/build_playlist.py
+	sudo cp $(PLAYLIST_SERVICE_SRC) $(PLAYLIST_SERVICE_UNIT)
+	sudo cp $(PLAYLIST_TIMER_SRC) $(PLAYLIST_TIMER_UNIT)
+	sudo systemctl daemon-reload
+	sudo systemctl enable omaradio-playlist-builder@one.timer
+	@echo "omaradio-playlist-builder@one.timer installed and enabled (not started yet)."
+	@echo "Verify with --dry-run/--plan-only/--no-restart first, then:"
+	@echo "  sudo systemctl start omaradio-playlist-builder@one.timer"
 
 # --- omaradio-platform: this repo, actively developed ---------------------
 

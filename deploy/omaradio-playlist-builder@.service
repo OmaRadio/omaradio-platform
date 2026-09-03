@@ -1,0 +1,21 @@
+[Unit]
+Description=OmaRadio playlist builder -- rebuild on-air/ for station %i
+After=network.target
+
+[Service]
+Type=oneshot
+User=omaradio
+Group=omaradio
+ExecStart=/usr/bin/python3 /opt/omaradio/playlist-builder/build_playlist.py --station %i
+WorkingDirectory=/opt/omaradio/playlist-builder
+
+# Deliberately NO NoNewPrivileges=true here, unlike cliamp-server.service.
+# build_playlist.py shells out to `sudo systemctl restart cliamp-server`
+# (via the passwordless sudoers rule in /etc/sudoers.d/omaradio-cliamp-restart)
+# -- NoNewPrivileges blocks exactly that class of privilege gain (sudo's
+# setuid-root escalation), so copying it in from cliamp-server.service
+# would silently break the restart step on every single run. Do not add it
+# back without also reworking how the restart happens.
+
+[Install]
+WantedBy=multi-user.target

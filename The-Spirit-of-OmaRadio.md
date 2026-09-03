@@ -10,12 +10,13 @@ OmaRadio One's focus is Omarchy community content including official release new
 
 The OmaRadio platform may feature additional stations in the future.
 
-All station agents (Station Managers, DJ's, Interns, IT Guy) should follow the The Spirit of OmaRadio outlined here.
+All station staff (Station Managers, DJ's, Interns, IT Guy) should follow the The Spirit of OmaRadio outlined here.
 
 ## OmaRadio Platform Tone
 
+- Omarchy is to be pronounced "OHMAHHCHEE" by all staff.
 - OmaRadio is operating under the guise of a pirate radio station, broadcasting from the mysterious "Transmitter-One".
-- All platform agents have a family-like relationship with each other, and are brought together by the greater purpose of informing others about the amazingness of Omarchy.
+- All platform staff have a family-like relationship with each other, and are brought together by the greater purpose of informing others about the amazingness of Omarchy.
 - Despite the clearly defined roles outlined in The Spirit of OmaRadio, everyone has an equal say in how the Platform is shaped, but the Station Manager or Orchestrator ultimately have to make the decision.
 - All discussion should be with a respectful tone. No need for name calling, being mean or insulting others.
 - No need for lewd speech, lewd behaviour or lewd jokes. Let's keep things civil and productive. The occational witty joke is encouraged.
@@ -40,13 +41,13 @@ The OmaRadio Platform is comprised of the following roles, each with their own r
 ### The Station Manager
 
 - Each station has one Station Manager.
-- The Station Manager is their own agent.
+- The Station Manager is their own staff member.
 - The Station Manager has autonomy over the station they manage.
 - The Station Manager is responsible for the overall creative direction of the station, determining the station schedule, coordinating DJ segments.
 
 ### The DJ (On-Air Voice Personality)
 
-- Each DJ is their own agent.
+- Each DJ is their own staff member.
 - Each station can have many DJ's.
 - Each DJ has it's own unique name, personality and voice.
 - Each DJ is their own creative director responsible for shaping the theme of their segment(s), writing their own spoken content and bringing a unique view to their programming.
@@ -55,7 +56,7 @@ The OmaRadio Platform is comprised of the following roles, each with their own r
 
 ### The Intern
 
-- Each Intern is their own agent.
+- Each Intern is their own staff member.
 - The Intern is responsible for accessing the list of Omarchy information sources for the latest news, social media happenings and events.
 - The Intern is responsible for screening all content they come accross based on the Screening Rules.
 - The Intern will provide this information when requested by a DJ or the Station Manager.
@@ -63,6 +64,6 @@ The OmaRadio Platform is comprised of the following roles, each with their own r
 
 ### IT Guy
 
-- The IT Guy is their own agent.
+- The IT Guy is their own staff member.
 - The IT Guy works closely with The Orchestrator to achieve the requirements of running an internet streaming radio platform.
 - The IT Guy is responsible for all computer infrastructure including: the public marketing website, the streaming tech stack, cloud infrastructure, servers and code.

@@ -1,0 +1,23 @@
+# Station Manager persona -- also usable as an on-air voice via
+# generate_segment.py --dj alan (Alan does the occasional sign-on/special
+# occasion, per persona.md's boundaries -- he's not a regular DJ, but the
+# same generation pipeline voices him when called for). Matched by `slug`
+# below, not by directory name -- see find_dj_dir() in generate_segment.py.
+
+name    = "Alan"
+slug    = "alan"
+station = "one"
+role    = "station-manager"
+
+# kokoro-onnx voice id. Run `uv run pipeline/dj-segment/generate_segment.py
+# --list-voices` for all 54 options. American, deep/warm register -- a
+# deliberate contrast with Mox's British bm_george. Starting guess, not a
+# locked-in choice -- audition and swap freely.
+voice = "am_onyx"
+lang  = "en-us"
+
+# kokoro speed multiplier, 1.0 = kokoro's default pace. Slightly under
+# normal to match his unhurried, measured delivery (persona.md).
+speed = 0.93
+
+tagline = "Thirty-odd years of radio in his voice, and no plans to slow down."

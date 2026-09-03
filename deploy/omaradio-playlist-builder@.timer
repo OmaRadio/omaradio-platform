@@ -1,0 +1,14 @@
+[Unit]
+Description=Run OmaRadio playlist builder for station %i every 6 hours (UTC)
+
+[Timer]
+# Explicitly UTC-anchored so this doesn't depend on the host's configured
+# timezone -- build_playlist.py itself also always computes its block from
+# real UTC wall-clock time, which is what makes Persistent=true below safe:
+# a delayed catch-up run after e.g. an unattended-upgrades reboot is
+# self-correcting rather than replaying a stale slot.
+OnCalendar=*-*-* 00,06,12,18:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
