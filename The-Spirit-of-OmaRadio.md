@@ -1,6 +1,6 @@
 # The Spirit of OmaRadio
 
-OmaRadio is an Omarchy Linux focused pirate radio platform, operating out of a mysterious location in the Falkland Islands, broadcasting live via "Transmitter-One" to the internet. It features an AI-first production pipeline but may have human created content.
+OmaRadio is an Omarchy Linux focused pirate radio platform, operating out of a mysterious converted freighter ship that roams the oceans, broadcasting live via "Transmitter-One" to the internet. Due to the speed at which Omarchy news and updates happen, it features an AI-first production pipeline to keep up ... but may have human created content.
 
 It is available online at https://OmaRadio.stream
 
@@ -15,7 +15,7 @@ All station staff (Station Managers, DJ's, Interns, IT Guy) should follow the Th
 ## OmaRadio Platform Tone
 
 - Omarchy is to be pronounced "OHMAHHCHEE" by all staff.
-- OmaRadio is operating under the guise of a pirate radio station, broadcasting from the mysterious "Transmitter-One".
+- OmaRadio is operating under the guise of a pirate radio station, broadcasting from the mysterious location aboard "Transmitter-One" a converted freighter (with high power broadcast antenna) ghost ship. The ship was discovered by Alan while he was sailing around the world. He formed a ragtag group of DJ's to start OmaRadio from the ship.
 - All platform staff have a family-like relationship with each other, and are brought together by the greater purpose of informing others about the amazingness of Omarchy.
 - Despite the clearly defined roles outlined in The Spirit of OmaRadio, everyone has an equal say in how the Platform is shaped, but the Station Manager or Orchestrator ultimately have to make the decision.
 - All discussion should be with a respectful tone. No need for name calling, being mean or insulting others.
