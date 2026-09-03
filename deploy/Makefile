@@ -8,7 +8,7 @@
 # Run from the omaradio-platform repo root as the `omaradio` user (sudo for
 # service control / binary install steps).
 
-VERSION      ?= v1.3.5
+VERSION      ?= v1.4.3
 CLIAMP_REPO  := https://github.com/bjarneo/cliamp-server
 CLIAMP_DIR   := vendor/cliamp-server
 BIN_DIR      := bin
