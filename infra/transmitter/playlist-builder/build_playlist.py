@@ -4,16 +4,23 @@ OmaRadio Playlist Builder
 ===========================
 
 Rebuilds a station's `on-air/` symlink farm from already-approved,
-already-synced content sitting in the media vault, then restarts
-cliamp-server so it picks up the change. Runs unattended on transmitter-one
-via a systemd timer (see ../../../deploy/omaradio-playlist-builder@.timer),
-once per 6-hour block (00:00, 06:00, 12:00, 18:00 UTC).
+already-synced content sitting in the media vault, then tells cliamp-server
+to pick up the change. Runs unattended on transmitter-one via a systemd
+timer (see ../../../deploy/omaradio-playlist-builder@.timer), once per
+6-hour block (00:00, 06:00, 12:00, 18:00 UTC).
 
-cliamp-server (github.com/bjarneo/cliamp-server) has no built-in
-scheduling, no hot-reload, and loops its playlist forever sorted by plain
-string comparison on the file path -- all of that is why this script
-exists and why on-air/ entries are zero-padded 3-digit numbers (mixing
-digit widths would break the sort order outright).
+cliamp-server has no built-in scheduling and loops its playlist forever
+sorted by plain string comparison on the file path -- both of which are
+why this script exists and why on-air/ entries are zero-padded 3-digit
+numbers (mixing digit widths would break the sort order outright).
+
+Default mode is --reload-mode reload: `systemctl reload cliamp-server`
+(SIGHUP) swaps the new playlist in live, with NO listener disconnection --
+this only works on the github.com/choyer/cliamp-server hot-reload fork
+we're currently running (see deploy/Makefile's header comment); a stock
+upstream binary has no SIGHUP handler. --reload-mode restart falls back to
+the old `systemctl restart` behavior (disconnects listeners) -- keep this
+available as an escape hatch while the fork is still in trial use.
 
 Stdlib only, deliberately -- transmitter-one runs no other Python and this
 needs no third-party packages.
@@ -23,14 +30,15 @@ Usage (run on transmitter-one, or locally against --vault-root for testing):
     build_playlist.py --station one --block-start 2026-09-03T00:00:00Z
     build_playlist.py --station one --dry-run                # plan + print only, write nothing
     build_playlist.py --station one --plan-only               # write schedule JSON, don't touch on-air/
-    build_playlist.py --station one --no-restart               # rebuild on-air/ but skip the service restart
+    build_playlist.py --station one --no-apply                # rebuild on-air/ but skip reload/restart entirely
+    build_playlist.py --station one --reload-mode restart     # fall back to the old restart-based apply
     build_playlist.py --rebuild-from schedule/one/2026/09/03-0000.json   # replay an existing schedule
 
 Requires ffprobe (part of ffmpeg) on PATH, and passwordless sudo for the
-exact command `systemctl restart cliamp-server` for the invoking user --
-see infra/transmitter/vault/on-air-place.sh's header comment for the
-one-time sudoers setup (this script reuses that same rule; no new
-privilege escalation is introduced).
+exact commands `systemctl reload cliamp-server` and `systemctl restart
+cliamp-server` for the invoking user -- see
+infra/transmitter/vault/on-air-place.sh's header comment for the sudoers
+setup (this script reuses those same rules; no new privilege escalation).
 
 IMPORTANT -- manual on-air-place.sh placements are ephemeral once this
 timer is running: every 6-hour block does a FULL replace of on-air/, so an
@@ -40,7 +48,7 @@ of those placements.
 
 Rollback: this script keeps exactly one prior generation as on-air.prev/
 (sibling to on-air/, overwritten every run). To manually revert to it:
-    rm -rf on-air && mv on-air.prev on-air && sudo systemctl restart cliamp-server
+    rm -rf on-air && mv on-air.prev on-air && sudo systemctl reload cliamp-server
 """
 
 import argparse
@@ -230,16 +238,21 @@ def write_schedule(vault_root: Path, station: str, block_start: datetime, schedu
     return path
 
 
-def restart_cliamp_server() -> bool:
-    result = subprocess.run(["sudo", "systemctl", "restart", "cliamp-server"], capture_output=True, text=True)
+def apply_cliamp_change(mode: str) -> bool:
+    """mode is 'reload' (SIGHUP via `systemctl reload` -- no listener
+    disconnect, only works on the choyer/cliamp-server hot-reload fork) or
+    'restart' (the old behavior, disconnects listeners -- kept as a
+    fallback while the fork is in trial use)."""
+    verb = "reload" if mode == "reload" else "restart"
+    result = subprocess.run(["sudo", "systemctl", verb, "cliamp-server"], capture_output=True, text=True)
     if result.returncode != 0:
-        logging.error(f"systemctl restart failed: {result.stderr.strip()}")
+        logging.error(f"systemctl {verb} failed: {result.stderr.strip()}")
         return False
-    logging.info("cliamp-server restarted.")
+    logging.info(f"cliamp-server {verb}ed.")
     return True
 
 
-def build_on_air(vault_root: Path, station: str, schedule: dict, restart: bool = True) -> None:
+def build_on_air(vault_root: Path, station: str, schedule: dict, apply_mode: str | None = "reload") -> None:
     on_air_dir = vault_root / "stations" / station / "on-air"
     staging_dir = on_air_dir.parent / "on-air.new"
     prev_dir = on_air_dir.parent / "on-air.prev"
@@ -269,14 +282,14 @@ def build_on_air(vault_root: Path, station: str, schedule: dict, restart: bool =
     staging_dir.rename(on_air_dir)
     logging.info(f"on-air/ rebuilt with {written} entries (prior generation kept at {prev_dir}).")
 
-    if not restart:
-        logging.info("--no-restart set -- on-air/ updated but cliamp-server was NOT restarted.")
+    if apply_mode is None:
+        logging.info("--no-apply set -- on-air/ updated but cliamp-server was not told to pick it up.")
         return
 
-    if not restart_cliamp_server():
+    if not apply_cliamp_change(apply_mode):
         logging.error(
-            "on-air/ WAS already updated, but the cliamp-server restart failed -- "
-            "run 'sudo systemctl restart cliamp-server' manually."
+            f"on-air/ WAS already updated, but the cliamp-server {apply_mode} failed -- "
+            f"run 'sudo systemctl {apply_mode} cliamp-server' manually."
         )
         raise SystemExit(1)
 
@@ -291,18 +304,24 @@ def main():
                          help=f"Root of the media vault (default: {DEFAULT_VAULT_ROOT})")
     parser.add_argument("--dry-run", action="store_true", help="Plan and print only -- write nothing")
     parser.add_argument("--plan-only", action="store_true", help="Write the schedule JSON but don't touch on-air/")
-    parser.add_argument("--no-restart", action="store_true", help="Rebuild on-air/ but skip the cliamp-server restart")
+    parser.add_argument("--no-apply", action="store_true",
+                         help="Rebuild on-air/ but don't tell cliamp-server -- skips both reload and restart")
+    parser.add_argument("--reload-mode", choices=["reload", "restart"], default="reload",
+                         help="How to apply the change once on-air/ is rebuilt (default: reload). "
+                              "'reload' needs the choyer/cliamp-server hot-reload fork; 'restart' is the "
+                              "old listener-disconnecting fallback, useful if the fork misbehaves.")
     parser.add_argument("--rebuild-from", type=Path, default=None,
                          help="Skip planning; rebuild on-air/ directly from an existing schedule JSON file")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    apply_mode = None if args.no_apply else args.reload_mode
 
     if args.rebuild_from:
         schedule = json.loads(args.rebuild_from.read_text(encoding="utf-8"))
         if schedule.get("schema_version") != 1:
             raise SystemExit(f"Unsupported or missing schema_version in {args.rebuild_from}")
-        build_on_air(args.vault_root, schedule["station"], schedule, restart=not args.no_restart)
+        build_on_air(args.vault_root, schedule["station"], schedule, apply_mode=apply_mode)
         return
 
     if not args.station:
@@ -330,7 +349,7 @@ def main():
     if args.plan_only:
         return
 
-    build_on_air(args.vault_root, args.station, schedule, restart=not args.no_restart)
+    build_on_air(args.vault_root, args.station, schedule, apply_mode=apply_mode)
 
 
 if __name__ == "__main__":

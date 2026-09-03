@@ -12,6 +12,11 @@ Group=omaradio
 # [admin] comment and `make cliamp-service-install`.
 EnvironmentFile=-/opt/omaradio/secrets/cliamp.env
 ExecStart=/usr/local/bin/cliamp-server --config /opt/omaradio/config.toml --password ${ADMIN_PASSWORD}
+# `systemctl reload cliamp-server` -> SIGHUP -> live playlist reload, no
+# restart/listener-disconnect. Only works on the choyer/cliamp-server
+# hot-reload fork (see deploy/Makefile's header comment) -- a stock
+# upstream binary has no SIGHUP handler and will just ignore this signal.
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
 WorkingDirectory=/opt/omaradio

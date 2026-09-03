@@ -3,9 +3,15 @@
 # on-air-place.sh
 #
 # Symlinks an already-synced media file into a station's on-air/ rotation
-# on transmitter-one, then restarts cliamp-server so it actually picks up
-# the change -- confirmed empirically (2026-09-02) that cliamp-server does
-# NOT notice on-air/ symlink changes live.
+# on transmitter-one, then tells cliamp-server to pick up the change.
+#
+# Default is `systemctl reload` (SIGHUP) -- a LIVE swap with NO listener
+# disconnection. This only works on the github.com/choyer/cliamp-server
+# hot-reload fork we're currently running (see deploy/Makefile's header
+# comment); confirmed empirically (2026-09-02) that a stock upstream
+# cliamp-server binary does NOT notice on-air/ changes at all without a
+# full restart, which DOES disconnect listeners. Pass --restart to force
+# the old restart-based behavior (useful if the fork misbehaves).
 #
 # IMPORTANT once infra/transmitter/playlist-builder/build_playlist.py's
 # systemd timer is running (every 6h, at 00/06/12/18 UTC): that job does a
@@ -17,7 +23,8 @@
 # Usage:
 #   ./on-air-place.sh <station> <remote-source-path> <on-air-filename>
 #   ./on-air-place.sh <station> <remote-source-path> <on-air-filename> --replace <existing-filename>
-#   ./on-air-place.sh [--dry-run|-n] ...   (preview only, no changes)
+#   ./on-air-place.sh ... --restart          (force restart instead of reload)
+#   ./on-air-place.sh [--dry-run|-n] ...     (preview only, no changes)
 #
 # <remote-source-path> is the file's path on transmitter-one (i.e. under
 # /mnt/media_library/library/...), NOT a local path -- run
@@ -30,19 +37,21 @@
 #   # Replace an existing slot (removes the old symlink first, same or new number):
 #   ./on-air-place.sh one /mnt/media_library/library/dj-segments/dj-mox/generated/<id>.mp3 001-mox_welcome.mp3 --replace 001-num_init_testing.mp3
 #
-# Requires passwordless sudo for the exact command `systemctl restart
-# cliamp-server`, for the omaradio user on transmitter-one -- this is NOT
-# set up by default (the hardening script only adds omaradio to the sudo
-# group, which still prompts for a password). One-time setup, run
-# interactively on transmitter-one (needs your sudo password once):
+# Requires passwordless sudo for the exact commands `systemctl reload
+# cliamp-server` and `systemctl restart cliamp-server`, for the omaradio
+# user on transmitter-one -- this is NOT set up by default (the hardening
+# script only adds omaradio to the sudo group, which still prompts for a
+# password). One-time setup, run interactively on transmitter-one (needs
+# your sudo password once):
 #
 #   ssh omaradio@transmitter-one.omaradio.stream
-#   echo 'omaradio ALL=(root) NOPASSWD: /usr/bin/systemctl restart cliamp-server' \
+#   printf 'omaradio ALL=(root) NOPASSWD: /usr/bin/systemctl restart cliamp-server\n%s\n' \
+#     'omaradio ALL=(root) NOPASSWD: /usr/bin/systemctl reload cliamp-server' \
 #     | sudo tee /etc/sudoers.d/omaradio-cliamp-restart
 #   sudo chmod 440 /etc/sudoers.d/omaradio-cliamp-restart
 #   sudo visudo -c        # validates syntax -- must report "parsed OK"
 #
-# Without that, the restart step below fails with "sudo: a password is
+# Without that, the apply step below fails with "sudo: a password is
 # required" (this script runs over non-interactive SSH, which can't prompt).
 
 set -euo pipefail
@@ -67,14 +76,16 @@ err()  { echo -e "  ${RED}\xe2\x9c\x97 ERROR:${RESET} $*" >&2; }
 
 DRY_RUN=""
 REPLACE=""
+APPLY_VERB="reload"
 POSITIONAL=()
 
 while [ $# -gt 0 ]; do
     case "$1" in
         -n|--dry-run) DRY_RUN="1"; shift ;;
         --replace) REPLACE="$2"; shift 2 ;;
+        --restart) APPLY_VERB="restart"; shift ;;
         -h|--help)
-            sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) POSITIONAL+=("$1"); shift ;;
@@ -107,10 +118,10 @@ else
 fi
 
 if [ -n "$DRY_RUN" ]; then
-    warn "Dry-run mode -- no changes will be made, cliamp-server will not be restarted."
+    warn "Dry-run mode -- no changes will be made, cliamp-server will not be ${APPLY_VERB}ed."
     [ -n "$REPLACE" ] && echo "  rm ${ON_AIR_DIR}/${REPLACE}"
     echo "  ln -s ${SOURCE_PATH} ${TARGET_PATH}"
-    echo "  sudo systemctl restart cliamp-server"
+    echo "  sudo systemctl ${APPLY_VERB} cliamp-server"
     exit 0
 fi
 
@@ -127,13 +138,13 @@ if ! ssh "${REMOTE_USER}@${REMOTE_HOST}" "$REMOTE_CMD"; then
 fi
 ok "on-air/ updated."
 
-step "Restarting cliamp-server"
-if ! ssh "${REMOTE_USER}@${REMOTE_HOST}" "sudo systemctl restart cliamp-server"; then
-    err "Restart failed -- if this is 'sudo: a password is required', see this script's"
+step "${APPLY_VERB^}ing cliamp-server"
+if ! ssh "${REMOTE_USER}@${REMOTE_HOST}" "sudo systemctl ${APPLY_VERB} cliamp-server"; then
+    err "${APPLY_VERB^} failed -- if this is 'sudo: a password is required', see this script's"
     err "header comment for the one-time NOPASSWD sudoers setup."
     exit 1
 fi
-ok "cliamp-server restarted."
+ok "cliamp-server ${APPLY_VERB}ed."
 
 step "Current on-air/ listing"
 ssh "${REMOTE_USER}@${REMOTE_HOST}" "ls -la '${ON_AIR_DIR}'"

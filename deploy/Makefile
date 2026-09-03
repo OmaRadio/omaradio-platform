@@ -5,11 +5,21 @@
 #                      Update deliberately with `make cliamp-update VERSION=vX.Y.Z`.
 #   - platform      : this repo (AI pipeline / agents), pull + redeploy freely.
 #
+# CLIAMP_REPO currently points at github.com/choyer/cliamp-server (a
+# personal fork, NOT the omaradio org), not bjarneo/cliamp-server upstream
+# -- as of 2026-09-03 we're running a trial patch (branch `hot-reload`,
+# tagged v1.4.3-omaradio.1+) that adds a SIGHUP-triggered live playlist
+# reload, so a scheduled rebuild no longer disconnects listeners the way
+# `systemctl restart` does. Intended to be proposed upstream as a PR once
+# proven out; until then, `make cliamp-update VERSION=...` pulls tags from
+# the fork, which mirrors upstream tags plus our own `-omaradio.N` ones.
+# To go back to stock upstream, repoint CLIAMP_REPO and VERSION.
+#
 # Run from the omaradio-platform repo root as the `omaradio` user (sudo for
 # service control / binary install steps).
 
-VERSION      ?= v1.4.3
-CLIAMP_REPO  := https://github.com/bjarneo/cliamp-server
+VERSION      ?= v1.4.3-omaradio.1
+CLIAMP_REPO  := https://github.com/choyer/cliamp-server
 CLIAMP_DIR   := vendor/cliamp-server
 BIN_DIR      := bin
 INSTALL_BIN  := /usr/local/bin/cliamp-server
