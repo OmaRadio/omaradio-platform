@@ -46,6 +46,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -58,6 +59,27 @@ DJ_SLUG = "dj-vera"
 GENERATE_SCRIPT = Path(__file__).resolve().parent / "generate_segment.py"
 REVIEW_SCRIPT = Path(__file__).resolve().parent / "review_segment.py"
 FETCH_SCRIPT = REPO_ROOT / "pipeline" / "news-intern" / "fetch_news.py"
+
+
+def find_uv() -> str:
+    """Resolve an absolute path to `uv` for the subprocess calls below.
+    This script is itself launched via `uv run`, but that does NOT put uv
+    on PATH for child processes -- confirmed for real 2026-09-03, when the
+    systemd unit (which sets ExecStart to uv's absolute path, since
+    ~/.local/bin isn't on a systemd unit's PATH either) still failed with
+    FileNotFoundError('uv') from these subprocess.run(["uv", ...]) calls.
+    shutil.which() covers normal interactive/dev-machine use where uv IS on
+    PATH; the fallback candidates cover systemd's minimal PATH."""
+    found = shutil.which("uv")
+    if found:
+        return found
+    for candidate in (Path.home() / ".local" / "bin" / "uv", Path("/usr/local/bin/uv"), Path("/usr/bin/uv")):
+        if candidate.is_file():
+            return str(candidate)
+    return "uv"  # last resort -- let subprocess raise a clear error
+
+
+UV = find_uv()
 
 RECENT_SEGMENTS_WINDOW = 5  # how many of Vera's most-recent segments count as "recently covered"
 MAX_ITEM_AGE_HOURS = 72     # mirrors fetch_news.py's own --max-age-hours default
@@ -117,7 +139,7 @@ def find_unused_items(used_ids: set[str]) -> list[dict]:
 
 
 def run_fetch(dry_run: bool) -> None:
-    cmd = ["uv", "run", str(FETCH_SCRIPT), "fetch"]
+    cmd = [UV, "run", str(FETCH_SCRIPT), "fetch"]
     logging.info(f"Running: {' '.join(cmd)}")
     if dry_run:
         return
@@ -129,7 +151,7 @@ def run_fetch(dry_run: bool) -> None:
 
 
 def generate_segment(items: list[dict], dry_run: bool) -> str | None:
-    cmd = ["uv", "run", str(GENERATE_SCRIPT), "--dj", DJ_SLUG]
+    cmd = [UV, "run", str(GENERATE_SCRIPT), "--dj", DJ_SLUG]
     for item in items:
         cmd += ["--news-item", item["id"]]
     cmd += ["--brief", BRIEF_TEMPLATE]
@@ -151,7 +173,7 @@ def generate_segment(items: list[dict], dry_run: bool) -> str | None:
 
 
 def approve_segment(segment_id: str, dry_run: bool) -> bool:
-    cmd = ["uv", "run", str(REVIEW_SCRIPT), "approve", segment_id, "--by", "AUTO-VERA"]
+    cmd = [UV, "run", str(REVIEW_SCRIPT), "approve", segment_id, "--by", "AUTO-VERA"]
     logging.info(f"Running: {' '.join(cmd)}")
     if dry_run:
         return True
