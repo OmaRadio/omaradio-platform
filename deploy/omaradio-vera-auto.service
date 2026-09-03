@@ -1,0 +1,26 @@
+[Unit]
+Description=OmaRadio Vera news-rundown auto-generator (fetch -> select -> generate -> auto-approve)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=omaradio
+Group=omaradio
+# Provides ANTHROPIC_API_KEY (for generate_segment.py / fetch_news.py's
+# release-summary calls) and LOCAL_LIBRARY (pointed straight at the vault,
+# /mnt/media_library/library, so approve writes there directly -- no
+# sync-library.sh step for this content). No leading '-': unlike
+# cliamp.env, there's no useful degraded mode without these, so a missing
+# file should fail the unit loudly rather than run a pointless cycle.
+EnvironmentFile=/opt/omaradio/secrets/dj-segment.env
+# uv installs to the invoking user's ~/.local/bin, not a system path --
+# absolute path here since systemd units don't source shell profiles (no
+# ~/.local/bin on PATH otherwise). Confirmed 2026-09-03: no passwordless
+# sudo for symlinking it into /usr/local/bin like cliamp-server, so this is
+# the simpler fix, not a workaround.
+ExecStart=/home/omaradio/.local/bin/uv run /opt/omaradio/platform/pipeline/dj-segment/auto_vera.py
+WorkingDirectory=/opt/omaradio/platform/pipeline/dj-segment
+
+[Install]
+WantedBy=multi-user.target

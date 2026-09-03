@@ -1,0 +1,17 @@
+[Unit]
+Description=Run the Vera auto-generator 15min ahead of each block build that can place her
+
+[Timer]
+# 23:45 / 05:45 / 11:45 UTC -- 15min before the 00:00/06:00/12:00 UTC block
+# builds (see omaradio-playlist-builder@.timer), NOT Vera's own 00/08/16
+# slot hours. plan_block() evaluates pick_latest() once, at block-build
+# time -- a fresh segment for her 08:00 appearance (offset 7200s into the
+# 06:00 block) must exist by 06:00, not 08:00. No 17:45 entry: the 18:00
+# block never contains a Vera insertion (verified in
+# find_periodic_insertions()'s own header comment), so a fourth run would
+# just burn an API call for nothing.
+OnCalendar=*-*-* 23,05,11:45:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

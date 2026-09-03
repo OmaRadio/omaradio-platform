@@ -48,11 +48,19 @@ PLAYLIST_TIMER_SRC     := platform/deploy/omaradio-playlist-builder@.timer
 PLAYLIST_SERVICE_UNIT  := /etc/systemd/system/omaradio-playlist-builder@.service
 PLAYLIST_TIMER_UNIT    := /etc/systemd/system/omaradio-playlist-builder@.timer
 
+VERA_AUTO_SERVICE_SRC  := platform/deploy/omaradio-vera-auto.service
+VERA_AUTO_TIMER_SRC    := platform/deploy/omaradio-vera-auto.timer
+VERA_AUTO_SERVICE_UNIT := /etc/systemd/system/omaradio-vera-auto.service
+VERA_AUTO_TIMER_UNIT   := /etc/systemd/system/omaradio-vera-auto.timer
+VERA_AUTO_SECRETS_ENV  := $(SECRETS_DIR)/dj-segment.env
+KOKORO_CACHE_DIR        := $(HOME)/.cache/omaradio/kokoro
+
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
         geoip-fetch geoip-install \
         platform-pull platform-install platform-restart \
-        playlist-builder-service-install
+        playlist-builder-service-install \
+        vera-auto-service-install
 
 help:
 	@echo "Targets:"
@@ -61,6 +69,7 @@ help:
 	@echo "  make cliamp-update VERSION=vX.Y.Z - build+install a pinned cliamp-server release"
 	@echo "  make geoip-install              - fetch + install latest GeoLite2-Country.mmdb"
 	@echo "  make playlist-builder-service-install - one-time: install + enable the 6-hourly playlist builder timer"
+	@echo "  make vera-auto-service-install   - one-time: install + enable Vera's news-auto-generator timer"
 	@echo "  make status                     - show status of managed services"
 	@echo "  make logs SERVICE=cliamp-server - tail logs for a service"
 
@@ -145,6 +154,47 @@ playlist-builder-service-install:
 	@echo "omaradio-playlist-builder@one.timer installed and enabled (not started yet)."
 	@echo "Verify with --dry-run/--plan-only/--no-restart first, then:"
 	@echo "  sudo systemctl start omaradio-playlist-builder@one.timer"
+
+# --- vera-auto: fetches news + generates + auto-approves Vera's rundown ---
+#
+# One-time: install the systemd unit + timer. Safe to re-run (idempotent).
+# Runs auto_vera.py straight from the platform/ checkout (git pull keeps it
+# current -- unlike build_playlist.py, there's no separate copy-to-install-
+# dir step, since this script already depends on `uv` + PEP 723 being
+# available, so there's no stdlib-only constraint pinning it to a fixed
+# location). Enables the timer but deliberately does NOT start it, same
+# reasoning as playlist-builder-service-install: the first unattended,
+# unreviewed, real-money-spending run should be an explicit human
+# go-ahead, not a `make` side effect. Verify with `uv run auto_vera.py
+# --dry-run` and a manual `systemctl start omaradio-vera-auto.service`
+# first, then:
+#   sudo systemctl enable --now omaradio-vera-auto.timer
+
+vera-auto-service-install:
+	@command -v uv >/dev/null || [ -x "$(HOME)/.local/bin/uv" ] || { echo "uv not found -- install it for the omaradio user first (see pipeline/dj-segment/README.md)"; exit 1; }
+	@[ -f "$(KOKORO_CACHE_DIR)/kokoro-v1.0.onnx" ] && [ -f "$(KOKORO_CACHE_DIR)/voices-v1.0.bin" ] || { \
+		echo "Kokoro model weights not found under $(KOKORO_CACHE_DIR) -- fetch them first:"; \
+		echo "  wget -P $(KOKORO_CACHE_DIR) https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"; \
+		echo "  wget -P $(KOKORO_CACHE_DIR) https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"; \
+		exit 1; \
+	}
+	sudo install -o omaradio -g omaradio -m 700 -d $(SECRETS_DIR)
+	@if [ ! -f $(VERA_AUTO_SECRETS_ENV) ]; then \
+		printf 'ANTHROPIC_API_KEY=\nLOCAL_LIBRARY=/mnt/media_library/library\n' | sudo tee $(VERA_AUTO_SECRETS_ENV) >/dev/null; \
+		sudo chown omaradio:omaradio $(VERA_AUTO_SECRETS_ENV); \
+		sudo chmod 600 $(VERA_AUTO_SECRETS_ENV); \
+		echo "Created empty $(VERA_AUTO_SECRETS_ENV) -- set ANTHROPIC_API_KEY there before starting the service."; \
+	else \
+		echo "$(VERA_AUTO_SECRETS_ENV) already exists, leaving it untouched."; \
+	fi
+	sudo cp $(VERA_AUTO_SERVICE_SRC) $(VERA_AUTO_SERVICE_UNIT)
+	sudo cp $(VERA_AUTO_TIMER_SRC) $(VERA_AUTO_TIMER_UNIT)
+	sudo systemctl daemon-reload
+	sudo systemctl enable omaradio-vera-auto.timer
+	@echo "omaradio-vera-auto.timer installed and enabled (not started yet)."
+	@echo "Verify with 'uv run auto_vera.py --dry-run' and a manual"
+	@echo "'sudo systemctl start omaradio-vera-auto.service' first, then:"
+	@echo "  sudo systemctl enable --now omaradio-vera-auto.timer"
 
 # --- omaradio-platform: this repo, actively developed ---------------------
 
