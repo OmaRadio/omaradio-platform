@@ -334,6 +334,82 @@ def write_schedule(vault_root: Path, station: str, block_start: datetime, schedu
     return path
 
 
+def send_email(subject: str, body: str) -> None:
+    """Fire-and-forget notification via Resend's REST API -- stdlib
+    urllib only, keeping this script's stdlib-only constraint intact.
+    Never raises: a notification failure must never block an on-air
+    rebuild. No-ops quietly if RESEND_API_KEY isn't set (matches
+    cliamp.env's optional-secret pattern -- notifications are opt-in)."""
+    import os
+    import urllib.request
+
+    api_key = os.environ.get("RESEND_API_KEY")
+    if not api_key:
+        logging.info("RESEND_API_KEY not set -- notifications not configured, skipping.")
+        return
+    payload = json.dumps({
+        "from": os.environ.get("NOTIFY_FROM", "onboarding@resend.dev"),
+        "to": [os.environ["NOTIFY_TO"]],
+        "subject": subject,
+        "text": body,
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.resend.com/emails", data=payload, method="POST",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logging.info(f"Sent notification email ({resp.status}): {subject}")
+    except Exception as exc:
+        logging.warning(f"Failed to send notification email ({subject!r}): {exc}")
+
+
+def segment_title(source_path: Path) -> str | None:
+    """Read a segment's own title out of its sibling script.json -- same
+    directory, already on disk, no extra cost. Falls back to None (caller
+    uses the on-air filename instead) if anything about that isn't there."""
+    script_path = source_path.with_suffix("").with_suffix(".script.json")
+    try:
+        return json.loads(script_path.read_text(encoding="utf-8")).get("title")
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return None
+
+
+def notify_rebuild(schedule: dict) -> None:
+    entries = schedule["entries"]
+    n_tracks = sum(1 for e in entries if e["type"] == "track")
+    n_segments = sum(1 for e in entries if e["type"] == "segment")
+    block_start = datetime.strptime(schedule["block_start_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+    dj_segments: dict[str, list[tuple[datetime, str]]] = {}
+    offset = 0.0
+    for entry in entries:
+        air_time = block_start + timedelta(seconds=offset)
+        if entry["type"] == "segment" and entry["dj"]:
+            title = segment_title(Path(entry["source_path"])) or entry["on_air_filename"]
+            dj_segments.setdefault(entry["dj"], []).append((air_time, title))
+        offset += entry["duration_seconds"]
+
+    lines = [
+        f"Station: {schedule['station']}",
+        f"Block: {schedule['block_start_utc']} - {schedule['block_end_utc']}",
+        f"Owning DJ: {schedule['owning_dj'] or 'none (open block)'}",
+        f"Entries: {len(entries)} ({n_segments} segments / {n_tracks} tracks)",
+        f"Estimated runtime: {schedule['estimated_duration_seconds'] / 3600:.2f}h",
+        "",
+        "DJ segments:",
+    ]
+    for dj, segs in dj_segments.items():
+        lines.append(f"  {dj}:")
+        for air_time, title in segs:
+            lines.append(f"    ~{air_time.strftime('%H:%M')} UTC -- {title}")
+
+    send_email(
+        f"OmaRadio on-air rebuilt: {schedule['station']} {schedule['block_start_utc']}",
+        "\n".join(lines),
+    )
+
+
 def apply_cliamp_change(mode: str) -> bool:
     """mode is 'reload' (SIGHUP via `systemctl reload` -- no listener
     disconnect, only works on the choyer/cliamp-server hot-reload fork) or
@@ -377,6 +453,7 @@ def build_on_air(vault_root: Path, station: str, schedule: dict, apply_mode: str
         on_air_dir.rename(prev_dir)
     staging_dir.rename(on_air_dir)
     logging.info(f"on-air/ rebuilt with {written} entries (prior generation kept at {prev_dir}).")
+    notify_rebuild(schedule)
 
     if apply_mode is None:
         logging.info("--no-apply set -- on-air/ updated but cliamp-server was not told to pick it up.")

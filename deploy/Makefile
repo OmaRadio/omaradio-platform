@@ -60,13 +60,16 @@ DJ_AUTO_TIMER_SRC      := platform/deploy/omaradio-dj-auto.timer
 DJ_AUTO_SERVICE_UNIT   := /etc/systemd/system/omaradio-dj-auto.service
 DJ_AUTO_TIMER_UNIT     := /etc/systemd/system/omaradio-dj-auto.timer
 
+NOTIFY_SECRETS_ENV     := $(SECRETS_DIR)/notify.env
+
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
         geoip-fetch geoip-install \
         platform-pull platform-install platform-restart \
         playlist-builder-service-install \
         vera-auto-service-install \
-        dj-auto-service-install
+        dj-auto-service-install \
+        notify-service-install
 
 help:
 	@echo "Targets:"
@@ -77,6 +80,7 @@ help:
 	@echo "  make playlist-builder-service-install - one-time: install + enable the 6-hourly playlist builder timer"
 	@echo "  make vera-auto-service-install   - one-time: install + enable Vera's news-auto-generator timer"
 	@echo "  make dj-auto-service-install     - one-time: install + enable Mox/Nova's daily auto-generator timer"
+	@echo "  make notify-service-install      - one-time: provision the email-notification secrets file"
 	@echo "  make status                     - show status of managed services"
 	@echo "  make logs SERVICE=cliamp-server - tail logs for a service"
 
@@ -233,6 +237,29 @@ dj-auto-service-install:
 	@echo "Verify with 'uv run auto_dj.py --dj dj-mox --dry-run' and a manual"
 	@echo "'sudo systemctl start omaradio-dj-auto.service' first, then:"
 	@echo "  sudo systemctl enable --now omaradio-dj-auto.timer"
+
+# --- notify: email alerts (low topic stock, on-air rebuild summaries) -----
+#
+# Only provisions the secrets scaffold -- the omaradio-playlist-builder@
+# and omaradio-dj-auto units pick up the new (optional) EnvironmentFile=
+# line the normal way, by re-running their own already-idempotent install
+# targets (playlist-builder-service-install, dj-auto-service-install)
+# after pulling this change. Both keep working with notifications
+# silently disabled if this file is never filled in (leading '-' on the
+# EnvironmentFile= line in both unit files).
+
+notify-service-install:
+	sudo install -o omaradio -g omaradio -m 700 -d $(SECRETS_DIR)
+	@if [ ! -f $(NOTIFY_SECRETS_ENV) ]; then \
+		printf 'RESEND_API_KEY=\nNOTIFY_FROM=onboarding@resend.dev\nNOTIFY_TO=\n' | sudo tee $(NOTIFY_SECRETS_ENV) >/dev/null; \
+		sudo chown omaradio:omaradio $(NOTIFY_SECRETS_ENV); \
+		sudo chmod 600 $(NOTIFY_SECRETS_ENV); \
+		echo "Created $(NOTIFY_SECRETS_ENV) -- set RESEND_API_KEY and NOTIFY_TO there."; \
+	else \
+		echo "$(NOTIFY_SECRETS_ENV) already exists, leaving it untouched."; \
+	fi
+	@echo "Now re-run 'make playlist-builder-service-install' and 'make dj-auto-service-install'"
+	@echo "(both idempotent) to pick up the new EnvironmentFile= line in each unit."
 
 # --- omaradio-platform: this repo, actively developed ---------------------
 

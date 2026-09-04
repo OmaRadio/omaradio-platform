@@ -70,6 +70,35 @@ TOPICS_FILE = Path(__file__).resolve().parent / "topics.toml"
 
 RECENT_SEGMENTS_WINDOW = 5  # how many of a DJ's most-recent segments count as "recently covered"
 ALAN_MODEL = "claude-haiku-4-5"  # cheap tier -- picking + drafting a brief is mechanical, not creative writing
+LOW_STOCK_THRESHOLD = 2  # email when a DJ has this many or fewer unused topics left, every run while low
+
+
+def send_email(subject: str, body: str) -> None:
+    """Fire-and-forget notification via Resend's REST API -- stdlib
+    urllib only, no new dependency. Never raises: a notification failure
+    must never break the generation/approval this script is doing. No-ops
+    quietly if RESEND_API_KEY isn't set (matches cliamp.env's
+    optional-secret pattern -- notifications are opt-in, not required)."""
+    api_key = os.environ.get("RESEND_API_KEY")
+    if not api_key:
+        logging.info("RESEND_API_KEY not set -- notifications not configured, skipping.")
+        return
+    import urllib.request
+    payload = json.dumps({
+        "from": os.environ.get("NOTIFY_FROM", "onboarding@resend.dev"),
+        "to": [os.environ["NOTIFY_TO"]],
+        "subject": subject,
+        "text": body,
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.resend.com/emails", data=payload, method="POST",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logging.info(f"Sent notification email ({resp.status}): {subject}")
+    except Exception as exc:
+        logging.warning(f"Failed to send notification email ({subject!r}): {exc}")
 
 
 def find_uv() -> str:
@@ -219,6 +248,13 @@ def run_for_dj(dj_slug: str, dry_run: bool) -> None:
 
     used = recently_used_topic_ids(dj_slug)
     candidates = [t for t in topics_for_dj(dj_slug) if t["id"] not in used]
+
+    if len(candidates) <= LOW_STOCK_THRESHOLD:
+        send_email(
+            f"OmaRadio: topics.toml running low for {dj_name}",
+            f"{dj_name} ({dj_slug}) has {len(candidates)} unused topic(s) left in topics.toml "
+            f"(threshold: {LOW_STOCK_THRESHOLD}). Restock it soon.",
+        )
 
     if not candidates:
         logging.warning(f"topics.toml exhausted for {dj_slug} -- every suitable entry was used recently. Restock it. Skipping this cycle.")

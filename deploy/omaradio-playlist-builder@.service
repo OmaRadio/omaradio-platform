@@ -6,6 +6,10 @@ After=network.target
 Type=oneshot
 User=omaradio
 Group=omaradio
+# Optional (leading '-'): rebuild-summary emails are opt-in, not required
+# -- build_playlist.py's send_email() no-ops quietly if this file (or
+# RESEND_API_KEY within it) isn't there. Same pattern as cliamp.env.
+EnvironmentFile=-/opt/omaradio/secrets/notify.env
 ExecStart=/usr/bin/python3 /opt/omaradio/playlist-builder/build_playlist.py --station %i
 WorkingDirectory=/opt/omaradio/playlist-builder
 

@@ -11,6 +11,10 @@ Group=omaradio
 # ANTHROPIC_API_KEY, same LOCAL_LIBRARY pointed at the vault. No new
 # secret needed for this pipeline.
 EnvironmentFile=/opt/omaradio/secrets/dj-segment.env
+# Optional (leading '-'): low-topic-stock emails are opt-in, not required
+# -- auto_dj.py's send_email() no-ops quietly if this file (or
+# RESEND_API_KEY within it) isn't there. Same pattern as cliamp.env.
+EnvironmentFile=-/opt/omaradio/secrets/notify.env
 ExecStart=/home/omaradio/.local/bin/uv run /opt/omaradio/platform/pipeline/dj-segment/auto_dj.py --all
 WorkingDirectory=/opt/omaradio/platform/pipeline/dj-segment
 
