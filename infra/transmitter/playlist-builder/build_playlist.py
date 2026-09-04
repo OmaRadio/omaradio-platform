@@ -355,7 +355,14 @@ def send_email(subject: str, body: str) -> None:
     }).encode()
     req = urllib.request.Request(
         "https://api.resend.com/emails", data=payload, method="POST",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
+            # Resend sits behind Cloudflare, which blocks the default
+            # Python-urllib/x.y User-Agent outright (error code 1010,
+            # confirmed for real 2026-09-04 -- identical curl traffic with
+            # no other differences went through fine).
+            "User-Agent": "OmaRadio-Notify/1.0",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
