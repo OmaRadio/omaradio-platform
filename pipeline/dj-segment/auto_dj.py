@@ -141,7 +141,18 @@ def send_pushover(title: str, message: str) -> None:
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            logging.info(f"Sent Pushover notification ({resp.status}): {title}")
+            # Pushover returns HTTP 200 even when it has nowhere to deliver
+            # to (e.g. no device currently logged into the app) -- that
+            # shows up as status != 1 or a non-empty "info" in the body,
+            # not as an HTTP error, so the body has to be checked too
+            # (confirmed for real 2026-09-04: a 200 with
+            # {"info": "no active devices to send to", "status": 1} logged
+            # as a silent "success" until this check was added).
+            result = json.loads(resp.read().decode("utf-8", "replace"))
+            if result.get("status") != 1 or result.get("info"):
+                logging.warning(f"Pushover accepted but did not deliver ({title!r}): {result}")
+            else:
+                logging.info(f"Sent Pushover notification ({resp.status}): {title}")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")
         logging.warning(f"Failed to send Pushover notification ({title!r}): {exc} -- {detail}")
