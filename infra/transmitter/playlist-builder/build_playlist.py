@@ -341,6 +341,7 @@ def send_email(subject: str, body: str) -> None:
     rebuild. No-ops quietly if RESEND_API_KEY isn't set (matches
     cliamp.env's optional-secret pattern -- notifications are opt-in)."""
     import os
+    import urllib.error
     import urllib.request
 
     api_key = os.environ.get("RESEND_API_KEY")
@@ -367,6 +368,11 @@ def send_email(subject: str, body: str) -> None:
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             logging.info(f"Sent notification email ({resp.status}): {subject}")
+    except urllib.error.HTTPError as exc:
+        # Resend's actual error reason lives in the response body -- bare
+        # str(exc) is just "HTTP Error 403: Forbidden" with no detail.
+        detail = exc.read().decode("utf-8", "replace")
+        logging.warning(f"Failed to send notification email ({subject!r}): {exc} -- {detail}")
     except Exception as exc:
         logging.warning(f"Failed to send notification email ({subject!r}): {exc}")
 
