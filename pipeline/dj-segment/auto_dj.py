@@ -114,6 +114,49 @@ def send_email(subject: str, body: str) -> None:
         logging.warning(f"Failed to send notification email ({subject!r}): {exc}")
 
 
+def send_pushover(title: str, message: str) -> None:
+    """Fire-and-forget push notification via Pushover's REST API -- same
+    stdlib-urllib-only, never-raises shape as send_email(). No-ops quietly
+    if PUSHOVER_API_TOKEN/PUSHOVER_USER_KEY aren't set (same optional-secret
+    pattern as RESEND_API_KEY -- this channel is opt-in too, independent of
+    email)."""
+    api_token = os.environ.get("PUSHOVER_API_TOKEN")
+    user_key = os.environ.get("PUSHOVER_USER_KEY")
+    if not api_token or not user_key:
+        logging.info("PUSHOVER_API_TOKEN/PUSHOVER_USER_KEY not set -- Pushover not configured, skipping.")
+        return
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+    # Pushover hard-caps messages at 1024 chars -- truncate defensively
+    # rather than let the API reject an over-length send outright.
+    if len(message) > 1024:
+        message = message[:1021] + "..."
+    payload = urllib.parse.urlencode({
+        "token": api_token, "user": user_key, "title": title, "message": message,
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.pushover.net/1/messages.json", data=payload, method="POST",
+        headers={"User-Agent": "OmaRadio-Notify/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logging.info(f"Sent Pushover notification ({resp.status}): {title}")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        logging.warning(f"Failed to send Pushover notification ({title!r}): {exc} -- {detail}")
+    except Exception as exc:
+        logging.warning(f"Failed to send Pushover notification ({title!r}): {exc}")
+
+
+def notify(subject: str, body: str) -> None:
+    """Fan out one notification to every configured channel (email,
+    Pushover, both, or neither -- each no-ops independently based on its
+    own secrets, see send_email()/send_pushover())."""
+    send_email(subject, body)
+    send_pushover(subject, body)
+
+
 def find_uv() -> str:
     """Resolve an absolute path to `uv` -- see auto_vera.py's own copy of
     this for why (systemd's PATH doesn't include ~/.local/bin, and this
@@ -263,7 +306,7 @@ def run_for_dj(dj_slug: str, dry_run: bool) -> None:
     candidates = [t for t in topics_for_dj(dj_slug) if t["id"] not in used]
 
     if len(candidates) <= LOW_STOCK_THRESHOLD:
-        send_email(
+        notify(
             f"OmaRadio: topics.toml running low for {dj_name}",
             f"{dj_name} ({dj_slug}) has {len(candidates)} unused topic(s) left in topics.toml "
             f"(threshold: {LOW_STOCK_THRESHOLD}). Restock it soon.",

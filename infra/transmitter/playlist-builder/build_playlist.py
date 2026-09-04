@@ -377,6 +377,43 @@ def send_email(subject: str, body: str) -> None:
         logging.warning(f"Failed to send notification email ({subject!r}): {exc}")
 
 
+def send_pushover(title: str, message: str) -> None:
+    """Fire-and-forget push notification via Pushover's REST API -- same
+    stdlib-urllib-only, never-raises shape as send_email(). No-ops quietly
+    if PUSHOVER_API_TOKEN/PUSHOVER_USER_KEY aren't set (same optional-secret
+    pattern as RESEND_API_KEY -- this channel is opt-in too, independent of
+    email)."""
+    import os
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    api_token = os.environ.get("PUSHOVER_API_TOKEN")
+    user_key = os.environ.get("PUSHOVER_USER_KEY")
+    if not api_token or not user_key:
+        logging.info("PUSHOVER_API_TOKEN/PUSHOVER_USER_KEY not set -- Pushover not configured, skipping.")
+        return
+    # Pushover hard-caps messages at 1024 chars -- truncate defensively
+    # rather than let the API reject an over-length send outright.
+    if len(message) > 1024:
+        message = message[:1021] + "..."
+    payload = urllib.parse.urlencode({
+        "token": api_token, "user": user_key, "title": title, "message": message,
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.pushover.net/1/messages.json", data=payload, method="POST",
+        headers={"User-Agent": "OmaRadio-Notify/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            logging.info(f"Sent Pushover notification ({resp.status}): {title}")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        logging.warning(f"Failed to send Pushover notification ({title!r}): {exc} -- {detail}")
+    except Exception as exc:
+        logging.warning(f"Failed to send Pushover notification ({title!r}): {exc}")
+
+
 def segment_title(source_path: Path) -> str | None:
     """Read a segment's own title out of its sibling script.json -- same
     directory, already on disk, no extra cost. Falls back to None (caller
@@ -394,13 +431,13 @@ def notify_rebuild(schedule: dict) -> None:
     n_segments = sum(1 for e in entries if e["type"] == "segment")
     block_start = datetime.strptime(schedule["block_start_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
-    dj_segments: dict[str, list[tuple[datetime, str]]] = {}
+    dj_segments: dict[str, list[tuple[datetime, str, float]]] = {}
     offset = 0.0
     for entry in entries:
         air_time = block_start + timedelta(seconds=offset)
         if entry["type"] == "segment" and entry["dj"]:
             title = segment_title(Path(entry["source_path"])) or entry["on_air_filename"]
-            dj_segments.setdefault(entry["dj"], []).append((air_time, title))
+            dj_segments.setdefault(entry["dj"], []).append((air_time, title, entry["duration_seconds"]))
         offset += entry["duration_seconds"]
 
     lines = [
@@ -414,13 +451,29 @@ def notify_rebuild(schedule: dict) -> None:
     ]
     for dj, segs in dj_segments.items():
         lines.append(f"  {dj}:")
-        for air_time, title in segs:
+        for air_time, title, _duration in segs:
             lines.append(f"    ~{air_time.strftime('%H:%M')} UTC -- {title}")
 
-    send_email(
-        f"OmaRadio on-air rebuilt: {schedule['station']} {schedule['block_start_utc']}",
-        "\n".join(lines),
-    )
+    # Pushover's format is deliberately different from email's line-by-line
+    # rundown above: a compact per-DJ stats summary (start/end/count/total
+    # airtime), sized to comfortably clear Pushover's 1024-char cap even for
+    # a busy multi-DJ block, rather than a truncated version of the email.
+    subject = f"OmaRadio on-air rebuilt: {schedule['station']} {schedule['block_start_utc']}"
+    if dj_segments:
+        po_lines = []
+        for dj, segs in dj_segments.items():
+            start_time = segs[0][0]
+            end_time = segs[-1][0] + timedelta(seconds=segs[-1][2])
+            total_seconds = sum(duration for _, _, duration in segs)
+            po_lines.append(
+                f"{dj}: {len(segs)} seg, {total_seconds / 60:.1f}m, "
+                f"{start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')} UTC"
+            )
+    else:
+        po_lines = ["No DJ segments this block."]
+
+    send_email(subject, "\n".join(lines))
+    send_pushover(subject, "\n".join(po_lines))
 
 
 def apply_cliamp_change(mode: str) -> bool:

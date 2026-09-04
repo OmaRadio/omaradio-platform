@@ -238,23 +238,26 @@ dj-auto-service-install:
 	@echo "'sudo systemctl start omaradio-dj-auto.service' first, then:"
 	@echo "  sudo systemctl enable --now omaradio-dj-auto.timer"
 
-# --- notify: email alerts (low topic stock, on-air rebuild summaries) -----
+# --- notify: email + Pushover alerts (low topic stock, on-air rebuild ----
+#     summaries) -------------------------------------------------------
 #
 # Only provisions the secrets scaffold -- the omaradio-playlist-builder@
 # and omaradio-dj-auto units pick up the new (optional) EnvironmentFile=
 # line the normal way, by re-running their own already-idempotent install
 # targets (playlist-builder-service-install, dj-auto-service-install)
-# after pulling this change. Both keep working with notifications
-# silently disabled if this file is never filled in (leading '-' on the
+# after pulling this change. Both channels are independently opt-in --
+# email fires if RESEND_API_KEY is set, Pushover fires if
+# PUSHOVER_API_TOKEN/PUSHOVER_USER_KEY are set, and either/both/neither
+# keep working with the other silently disabled (leading '-' on the
 # EnvironmentFile= line in both unit files).
 
 notify-service-install:
 	sudo install -o omaradio -g omaradio -m 700 -d $(SECRETS_DIR)
 	@if [ ! -f $(NOTIFY_SECRETS_ENV) ]; then \
-		printf 'RESEND_API_KEY=\nNOTIFY_FROM=onboarding@resend.dev\nNOTIFY_TO=\n' | sudo tee $(NOTIFY_SECRETS_ENV) >/dev/null; \
+		printf 'RESEND_API_KEY=\nNOTIFY_FROM=onboarding@resend.dev\nNOTIFY_TO=\nPUSHOVER_API_TOKEN=\nPUSHOVER_USER_KEY=\n' | sudo tee $(NOTIFY_SECRETS_ENV) >/dev/null; \
 		sudo chown omaradio:omaradio $(NOTIFY_SECRETS_ENV); \
 		sudo chmod 600 $(NOTIFY_SECRETS_ENV); \
-		echo "Created $(NOTIFY_SECRETS_ENV) -- set RESEND_API_KEY and NOTIFY_TO there."; \
+		echo "Created $(NOTIFY_SECRETS_ENV) -- set RESEND_API_KEY/NOTIFY_TO and/or PUSHOVER_API_TOKEN/PUSHOVER_USER_KEY there."; \
 	else \
 		echo "$(NOTIFY_SECRETS_ENV) already exists, leaving it untouched."; \
 	fi
