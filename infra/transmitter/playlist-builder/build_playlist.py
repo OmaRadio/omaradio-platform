@@ -91,6 +91,17 @@ STATION_PERIODIC_SEGMENTS = {
     "one": [{"dj": "dj-vera", "hours_utc": (0, 8, 16)}],
 }
 
+# Chance (0.0-1.0) that a generic station outro (see generate_outros.py --
+# station-branded, not DJ-branded, e.g. "You're listening to OmaRadio")
+# gets spliced in immediately after a DJ segment airs. Deliberately not
+# every time -- a station ID after literally every segment would get
+# repetitive fast. Checked independently for each DJ segment (shift-owner
+# picks and periodic insertions alike). Missing station = 0.0 (disabled),
+# same "unlisted = off" convention as STATION_PERIODIC_SEGMENTS.
+STATION_OUTRO_CHANCE = {
+    "one": 0.75,
+}
+
 BLOCK_SECONDS = 6 * 3600
 MAX_ENTRIES = 999  # safety cap -- see header comment on why digit width matters
 
@@ -143,6 +154,11 @@ def find_periodic_insertions(station: str, block_start: datetime, block_end: dat
 
 def list_segments(vault_root: Path, dj: str) -> list[Path]:
     d = vault_root / "library" / "dj-segments" / dj / "generated"
+    return sorted(d.glob("*.mp3")) if d.is_dir() else []
+
+
+def list_station_outros(vault_root: Path) -> list[Path]:
+    d = vault_root / "library" / "jingles" / "station-outro"
     return sorted(d.glob("*.mp3")) if d.is_dir() else []
 
 
@@ -256,6 +272,31 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
     last_segment: Path | None = None
     last_track: Path | None = None
 
+    # Station outros are generic/station-branded (see generate_outros.py),
+    # not tied to whichever DJ just aired, so there's a single shared pool
+    # here rather than one per-DJ. Not every DJ segment gets one -- see
+    # STATION_OUTRO_CHANCE -- so a missing pool is only worth one warning
+    # for the whole block, not per segment.
+    outro_chance = STATION_OUTRO_CHANCE.get(station, 0.0)
+    station_outro_pool = list_station_outros(vault_root)
+    if not station_outro_pool:
+        logging.warning(
+            "No station outro clips found under library/jingles/station-outro/ "
+            "-- segments will air without one (see generate_outros.py)."
+        )
+    last_outro: Path | None = None
+
+    def _maybe_append_station_outro() -> None:
+        nonlocal total_seconds, last_outro
+        if not station_outro_pool or random.random() >= outro_chance:
+            return
+        outro, dur = pick_playable(station_outro_pool, last_outro)
+        if outro is None:
+            return
+        entries.append(make_entry(len(entries) + 1, "outro", None, outro, dur))
+        total_seconds += dur
+        last_outro = outro
+
     # Periodic DJs (e.g. a news anchor doing one rundown 3x/day, on a
     # cadence that doesn't align with block boundaries) get exactly one
     # segment spliced into this block's sequence once accumulated duration
@@ -286,6 +327,7 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
             entry["periodic"] = True
             entries.append(entry)
             total_seconds += dur
+            _maybe_append_station_outro()
             logging.info(f"Inserted periodic segment for {st['dj']} at offset {st['offset']}s (block total now {total_seconds:.0f}s).")
 
     while total_seconds < BLOCK_SECONDS:
@@ -301,6 +343,7 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
                 entries.append(make_entry(len(entries) + 1, "segment", dj, seg, dur))
                 total_seconds += dur
                 last_segment = seg
+                _maybe_append_station_outro()
                 _maybe_insert_periodic()
 
         for _ in range(random.randint(3, 6)):
@@ -440,6 +483,7 @@ def notify_rebuild(schedule: dict) -> None:
     entries = schedule["entries"]
     n_tracks = sum(1 for e in entries if e["type"] == "track")
     n_segments = sum(1 for e in entries if e["type"] == "segment")
+    n_outros = sum(1 for e in entries if e["type"] == "outro")
     block_start = datetime.strptime(schedule["block_start_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
     dj_segments: dict[str, list[tuple[datetime, str, float]]] = {}
@@ -455,7 +499,7 @@ def notify_rebuild(schedule: dict) -> None:
         f"Station: {schedule['station']}",
         f"Block: {schedule['block_start_utc']} - {schedule['block_end_utc']}",
         f"Owning DJ: {schedule['owning_dj'] or 'none (open block)'}",
-        f"Entries: {len(entries)} ({n_segments} segments / {n_tracks} tracks)",
+        f"Entries: {len(entries)} ({n_segments} segments / {n_outros} outros / {n_tracks} tracks)",
         f"Estimated runtime: {schedule['estimated_duration_seconds'] / 3600:.2f}h",
         "",
         "DJ segments:",
@@ -582,11 +626,12 @@ def main():
 
     dj_label = schedule["owning_dj"] or "none (open block)"
     n_segments = sum(1 for e in schedule["entries"] if e["type"] == "segment")
+    n_outros = sum(1 for e in schedule["entries"] if e["type"] == "outro")
     n_tracks = sum(1 for e in schedule["entries"] if e["type"] == "track")
     hours = schedule["estimated_duration_seconds"] / 3600
     logging.info(
         f"Block {schedule['block_start_utc']}-{schedule['block_end_utc']} station={args.station} dj={dj_label}: "
-        f"{n_segments} segments / {n_tracks} tracks, ~{hours:.2f}h, {len(schedule['entries'])} entries total"
+        f"{n_segments} segments / {n_outros} outros / {n_tracks} tracks, ~{hours:.2f}h, {len(schedule['entries'])} entries total"
     )
 
     if args.dry_run:

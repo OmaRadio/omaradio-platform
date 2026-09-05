@@ -83,6 +83,19 @@ uses; default `~/Work/OmaRadio/media_library/library`) for where the local
 vault mirror lives, and `ANTHROPIC_MODEL` to override the default model
 (`claude-sonnet-5`).
 
+**Station outros:** `generate_outros.py` generates a 12-14-line pool of
+short, generic station-identification lines (e.g. "You're listening to
+OmaRadio One") -- station-branded, not tied to any DJ's voice or
+personality, in one dedicated station voice, written straight into
+`$LOCAL_LIBRARY/jingles/station-outro/` -- no `review_segment.py` gate,
+since these are brief-independent filler, not per-topic content (see
+CLAUDE.md for the full rationale, including why an earlier per-DJ version
+of this didn't work). `build_playlist.py` has an independent, weighted
+chance (`STATION_OUTRO_CHANCE`, default 75%) of splicing one in right
+after each DJ segment when it rebuilds `on-air/` -- not guaranteed every
+time, and no pool yet just means segments air without one. Re-running
+replaces the whole pool rather than adding to it.
+
 **Pronunciation:** `The-Spirit-of-OmaRadio.md` says "Omarchy" is pronounced
 "OH-MAHH-CHEE" -- that rule reaches the script-writing prompt automatically
 (the file is read live), but a TTS engine doesn't read prose pronunciation
