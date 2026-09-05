@@ -96,6 +96,24 @@ after each DJ segment when it rebuilds `on-air/` -- not guaranteed every
 time, and no pool yet just means segments air without one. Re-running
 replaces the whole pool rather than adding to it.
 
+**Every DJ segment also ends with its own baked-in sign-off** (e.g. "now
+on to some music") -- this is a platform-wide rule in
+`The-Spirit-of-OmaRadio.md`, not a separate script: it reaches every
+generated segment automatically since that file is read live by
+`generate_segment.py`. Complementary to the two outro mechanisms above,
+not a replacement for either.
+
+**Vera's dynamic hand-offs:** `generate_vera_handoffs.py` generates small
+pools (5 lines each, default) of pre-written variants for each *reachable*
+outcome of her periodic slot -- `dj-mox`, `dj-nova`, or plain `music` --
+written to `$LOCAL_LIBRARY/dj-segments/dj-vera/handoff/<target>/`. Since a
+pre-rendered clip can't dynamically speak a name, `build_playlist.py`
+picks the right one at schedule time -- it already knows which DJ (if
+any) owns the block Vera's landing in. Unlike the station outro, this
+isn't weighted: it always plays when a pool exists for that target. Her
+own rundown script stays generic on purpose (see her persona.md) -- she
+doesn't know who's coming on next when it's written.
+
 **Pronunciation:** `The-Spirit-of-OmaRadio.md` says "Omarchy" is pronounced
 "OH-MAHH-CHEE" -- that rule reaches the script-writing prompt automatically
 (the file is read live), but a TTS engine doesn't read prose pronunciation

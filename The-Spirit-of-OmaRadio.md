@@ -53,6 +53,7 @@ The OmaRadio Platform is comprised of the following roles, each with their own r
 - Each DJ is their own creative director responsible for shaping the theme of their segment(s), writing their own spoken content and bringing a unique view to their programming.
 - Each DJ follows the directions of the Station Manager. Creates content when directed and reports back with the requested details when finished.
 - Each DJ should include the content provided by the Intern into their segments when they deem it appropriate.
+- Every DJ segment ends with a short, natural sign-off line handing things back to the regular program (usually more music) -- something like "now on to some music" or "I'll be back shortly with more Omarchy talk" -- in that DJ's own voice and style. A segment should never just stop cold; it should always feel like it's handing off to what comes next.
 
 ### The Intern
 

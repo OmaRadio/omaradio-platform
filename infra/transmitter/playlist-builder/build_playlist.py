@@ -162,6 +162,15 @@ def list_station_outros(vault_root: Path) -> list[Path]:
     return sorted(d.glob("*.mp3")) if d.is_dir() else []
 
 
+def list_handoffs(vault_root: Path, dj: str, target: str) -> list[Path]:
+    """target is a shift-owning DJ's slug (whoever's block `dj` is landing
+    in) or the literal string "music" for an open block -- see
+    generate_vera_handoffs.py for how these get populated and why only
+    specific targets exist."""
+    d = vault_root / "library" / "dj-segments" / dj / "handoff" / target
+    return sorted(d.glob("*.mp3")) if d.is_dir() else []
+
+
 def list_music(vault_root: Path) -> list[Path]:
     d = vault_root / "library" / "music"
     return sorted(d.rglob("*.mp3")) if d.is_dir() else []
@@ -297,6 +306,30 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
         total_seconds += dur
         last_outro = outro
 
+    # A periodic DJ (e.g. Vera) can have pre-rendered "hand-off" tags that
+    # NAME whoever's block they're actually landing in -- a plain outro
+    # can't do this since it has to be picked live at schedule time, not
+    # baked into a fixed script at generation time. target is the current
+    # block's owning dj (whoever the periodic segment is handing off to)
+    # or "music" for an open block -- see list_handoffs()/
+    # generate_vera_handoffs.py. Unlike the station outro, this is NOT
+    # weighted/random -- always appended when a pool exists for this
+    # exact target, since it's a specific, meaningful close, not filler.
+    last_handoff_by_dj: dict[str, Path | None] = {}
+
+    def _maybe_append_handoff(periodic_dj: str) -> None:
+        nonlocal total_seconds
+        target = dj if dj else "music"
+        pool = list_handoffs(vault_root, periodic_dj, target)
+        if not pool:
+            return
+        tag, tag_dur = pick_playable(pool, last_handoff_by_dj.get(periodic_dj))
+        if tag is None:
+            return
+        entries.append(make_entry(len(entries) + 1, "handoff", periodic_dj, tag, tag_dur))
+        total_seconds += tag_dur
+        last_handoff_by_dj[periodic_dj] = tag
+
     # Periodic DJs (e.g. a news anchor doing one rundown 3x/day, on a
     # cadence that doesn't align with block boundaries) get exactly one
     # segment spliced into this block's sequence once accumulated duration
@@ -327,6 +360,7 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
             entry["periodic"] = True
             entries.append(entry)
             total_seconds += dur
+            _maybe_append_handoff(st["dj"])
             _maybe_append_station_outro()
             logging.info(f"Inserted periodic segment for {st['dj']} at offset {st['offset']}s (block total now {total_seconds:.0f}s).")
 
@@ -483,7 +517,7 @@ def notify_rebuild(schedule: dict) -> None:
     entries = schedule["entries"]
     n_tracks = sum(1 for e in entries if e["type"] == "track")
     n_segments = sum(1 for e in entries if e["type"] == "segment")
-    n_outros = sum(1 for e in entries if e["type"] == "outro")
+    n_outros = sum(1 for e in entries if e["type"] in ("outro", "handoff"))
     block_start = datetime.strptime(schedule["block_start_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
 
     dj_segments: dict[str, list[tuple[datetime, str, float]]] = {}
@@ -626,7 +660,7 @@ def main():
 
     dj_label = schedule["owning_dj"] or "none (open block)"
     n_segments = sum(1 for e in schedule["entries"] if e["type"] == "segment")
-    n_outros = sum(1 for e in schedule["entries"] if e["type"] == "outro")
+    n_outros = sum(1 for e in schedule["entries"] if e["type"] in ("outro", "handoff"))
     n_tracks = sum(1 for e in schedule["entries"] if e["type"] == "track")
     hours = schedule["estimated_duration_seconds"] / 3600
     logging.info(
