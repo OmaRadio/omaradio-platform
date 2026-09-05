@@ -163,7 +163,7 @@ in `The-Spirit-of-OmaRadio.md`, not yet written -- source-list membership
 is the screening for now), song-credit announcements, genre-aware/
 DJ-hosted-genre music selection, and automated Alan/Relay scheduling are
 all out of scope for this pipeline (the playlist builder itself only knows
-about Mox's and Nova's owned shift blocks -- see
+about Mox's, Nova's, and Nikon's owned shift blocks -- see
 `infra/transmitter/playlist-builder/build_playlist.py`). `--brief` is
 still required alongside `--news-item` and sets angle/tone/prominence --
 Alan automatically routing news to DJs, and DJs having "ambient" news

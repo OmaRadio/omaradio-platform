@@ -67,7 +67,7 @@ DEFAULT_VAULT_ROOT = Path("/mnt/media_library")
 # (music-only, no DJ auto-selected). Add a station here to enable it --
 # an unlisted station is a hard error, not a silent no-op.
 STATION_SHIFTS = {
-    "one": {0: "dj-mox", 6: None, 12: "dj-nova", 18: None},
+    "one": {0: "dj-mox", 6: None, 12: "dj-nova", 18: "dj-nikon"},
 }
 
 # DJs who get exactly ONE segment inserted into whichever block contains

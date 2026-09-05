@@ -1,5 +1,5 @@
 [Unit]
-Description=OmaRadio Mox/Nova auto-generator (Alan picks a topic -> brief -> generate -> auto-approve)
+Description=OmaRadio Mox/Nova/Nikon auto-generator (Alan picks a topic -> brief -> generate -> auto-approve)
 After=network-online.target
 Wants=network-online.target
 

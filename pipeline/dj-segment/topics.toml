@@ -47,6 +47,26 @@ djs = ["dj-nova"]
 text = "Capture that specific 'just installed a fresh OS' energy -- the small thrill of a clean system, in Nova's genuinely-delighted register."
 
 [[topic]]
+id = "nikon-sampling-and-foss-remix-culture"
+djs = ["dj-nikon"]
+text = "Draw the natural line between sampling/remix culture in music and the open-source ethos of reusing, forking, and building on someone else's work -- without forcing the metaphor too hard."
+
+[[topic]]
+id = "nikon-liner-notes-as-documentation"
+djs = ["dj-nikon"]
+text = "A record-collector riff on liner notes as a format -- the lost art of a record telling you its own story -- and how that compares to good (or bad) software documentation/changelogs today."
+
+[[topic]]
+id = "nikon-crate-digging-vs-algorithm"
+djs = ["dj-nikon"]
+text = "The specific pleasure of finding something by crate-digging versus having it served up by a recommendation algorithm -- tie it loosely to the appeal of a hand-curated, opinionated system like Omarchy over a one-size-fits-all default."
+
+[[topic]]
+id = "nikon-format-history-vinyl-to-streaming"
+djs = ["dj-nikon"]
+text = "A general-history riff on formats -- vinyl to tape to CD to streaming -- kept broad (genre/format-level, not specific unverifiable claims about one release), as a way into talking about why formats and standards matter."
+
+[[topic]]
 id = "ai-dj-staff-in-fiction-not-meta"
 text = "Something in-universe about being part of a ragtag crew running a station together -- family-like camaraderie per the Spirit doc -- without ever breaking the fourth wall about being AI-generated."
 

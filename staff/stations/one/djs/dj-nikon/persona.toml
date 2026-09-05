@@ -1,0 +1,22 @@
+# DJ persona -- machine-readable fields consumed directly by
+# pipeline/dj-segment/generate_segment.py. Edit voice/speed freely; changing
+# them takes effect on the next generated segment, no code change needed.
+
+name    = "Nikon"
+slug    = "dj-nikon"
+station = "one"
+
+# kokoro-onnx voice id. Run `uv run pipeline/dj-segment/generate_segment.py
+# --list-voices` for all 54 options. American male, picked distinct from
+# Alan's deeper am_onyx -- a warmer, more conversational register, fitting
+# a record-store-clerk kind of knowledgeable-but-relaxed delivery. Starting
+# guess, not a locked-in choice; audition and swap freely.
+voice = "am_michael"
+lang  = "en-us"
+
+# kokoro speed multiplier, 1.0 = kokoro's default pace. Unhurried but not
+# as slow as Alan's 0.93 -- someone who takes their time getting to the
+# good part of a story, distinct from Mox's 0.97 and Nova's brisk 1.05.
+speed = 0.98
+
+tagline = "Every record's got a story. So does he -- he's just not telling."

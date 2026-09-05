@@ -8,16 +8,16 @@
 # ]
 # ///
 """
-Auto DJ (Mox / Nova)
+Auto DJ (Mox / Nova / Nikon)
 =======================
 
 Hands-off feeder for OmaRadio One's personality DJs. Unlike Vera (see
 auto_vera.py, a news-anchor persona with a clean "unused fetched item"
-signal), Mox and Nova are freeform, personality-driven radio -- per the
-Spirit doc, "each DJ is their own creative director... writing their own
-spoken content." What they need isn't a fact to recap, it's direction --
-so this script has Alan (the Station Manager persona) pick a topic from a
-human-curated backlog (topics.toml) and write an actual brief for the
+signal), Mox, Nova, and Nikon are freeform, personality-driven radio -- per
+the Spirit doc, "each DJ is their own creative director... writing their
+own spoken content." What they need isn't a fact to recap, it's direction
+-- so this script has Alan (the Station Manager persona) pick a topic from
+a human-curated backlog (topics.toml) and write an actual brief for the
 target DJ, then generates and auto-approves a segment from it. No human
 review step -- a deliberate, explicit choice (see the plan this was built
 from), bigger than the same choice was for Vera: this content is freeform
@@ -25,10 +25,13 @@ and personality-driven, not fact-bound, so there's no factual grounding to
 fall back on if something drifts off-persona.
 
 Meant to run once a day on transmitter-one via systemd
-(deploy/omaradio-dj-auto.service/.timer), covering both DJs in one process
--- their content sits in a pool pick_playable() cycles through randomly
-across a whole 6h block (see build_playlist.py), not a precise per-slot
-insertion like Vera's, so there's no shift-aligned timing to hit.
+(deploy/omaradio-dj-auto.service/.timer), covering all three DJs in one
+process -- their content sits in a pool pick_playable() cycles through
+randomly across a whole 6h block (see build_playlist.py). This is true
+even for Nikon, who (unlike Mox/Nova) owns a specific shift block (18:00 UTC,
+see STATION_SHIFTS in build_playlist.py) -- shift ownership only determines
+which pool a block draws from, not a precise per-slot insertion like
+Vera's, so there's still no shift-aligned timing within the block to hit.
 
 Unlike auto_vera.py (stdlib-only), this script needs the Anthropic SDK
 directly for Alan's topic-pick-and-brief step -- a separate, cheap-tier
@@ -61,7 +64,7 @@ DEFAULT_LOCAL_LIBRARY = Path.home() / "Work" / "OmaRadio" / "media_library" / "l
 SPIRIT_DOC = REPO_ROOT / "The-Spirit-of-OmaRadio.md"
 
 STATION = "one"  # only station this repo supports today, same assumption STATION_SHIFTS/etc. already make
-ALL_DJS = ["dj-mox", "dj-nova"]
+ALL_DJS = ["dj-mox", "dj-nova", "dj-nikon"]
 ALAN_DIR = REPO_ROOT / "staff" / "stations" / STATION / "station-manager"
 
 GENERATE_SCRIPT = Path(__file__).resolve().parent / "generate_segment.py"
