@@ -105,7 +105,8 @@ not a replacement for either.
 
 **Vera's dynamic hand-offs:** `generate_vera_handoffs.py` generates small
 pools (5 lines each, default) of pre-written variants for each *reachable*
-outcome of her periodic slot -- `dj-mox`, `dj-nova`, or plain `music` --
+outcome of her periodic slot -- `dj-mox`, `dj-nova`, `dj-nikon`, or plain
+`music` --
 written to `$LOCAL_LIBRARY/dj-segments/dj-vera/handoff/<target>/`. Since a
 pre-rendered clip can't dynamically speak a name, `build_playlist.py`
 picks the right one at schedule time -- it already knows which DJ (if

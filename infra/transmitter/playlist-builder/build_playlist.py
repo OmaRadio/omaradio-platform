@@ -81,14 +81,18 @@ STATION_SHIFTS = {
 # -- unlike owning_dj()'s hard-fail, an unlisted station here just means
 # "no periodic DJs," which is a legitimate, not-a-bug station shape.
 #
-# With 6h blocks (starts at 0/6/12/18) and hours 8h apart, at most one
-# periodic hour can ever fall inside a single block -- e.g. for "one":
-# hour 0 -> the 00:00 block (offset 0s, i.e. right at block start), hour 8
-# -> the 06:00 block (offset 7200s), hour 16 -> the 12:00 block (offset
-# 14400s), and the 18:00 block gets NONE of the three -- confirmed
-# algebraically, not just intended; see find_periodic_insertions().
+# With 6h blocks (starts at 0/6/12/18), each of these four hours falls in
+# a different block -- hour 0 -> the 00:00 block (offset 0s, right at
+# block start), hour 8 -> the 06:00 block (offset 7200s), hour 16 -> the
+# 12:00 block (offset 14400s), hour 18 -> the 18:00 block (offset 0s,
+# right at block start) -- so every block now gets exactly one occurrence.
+# Confirmed algebraically, not just intended; see find_periodic_insertions().
+# (Originally just (0, 8, 16) -- 8h apart, evenly, which meant the 18:00
+# block never got one at all. Hour 18 was added 2026-09-05, once
+# dj-nikon's hand-off pool existed for it, specifically to close that gap
+# -- see generate_vera_handoffs.py.)
 STATION_PERIODIC_SEGMENTS = {
-    "one": [{"dj": "dj-vera", "hours_utc": (0, 8, 16)}],
+    "one": [{"dj": "dj-vera", "hours_utc": (0, 8, 16, 18)}],
 }
 
 # Chance (0.0-1.0) that a generic station outro (see generate_outros.py --
@@ -140,8 +144,10 @@ def find_periodic_insertions(station: str, block_start: datetime, block_end: dat
     periodic DJ whose configured UTC hour-of-day falls within
     [block_start, block_end). A list, not a single tuple|None, even though
     today's config provably yields at most one hit per block (6h blocks,
-    8h-apart hours) -- costs nothing and doesn't silently drop a second
-    periodic DJ if one's added later with a tighter/overlapping schedule.
+    hours (0, 8, 16, 18) each falling in a different block -- see
+    STATION_PERIODIC_SEGMENTS's own comment) -- costs nothing and doesn't
+    silently drop a second periodic DJ if one's added later with a
+    tighter/overlapping schedule.
     """
     hits = []
     for cfg in STATION_PERIODIC_SEGMENTS.get(station, []):

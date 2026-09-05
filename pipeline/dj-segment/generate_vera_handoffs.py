@@ -26,12 +26,13 @@ she's landing in (see owning_dj() / STATION_SHIFTS).
 
 Targets are hardcoded to what's actually reachable given today's
 schedule, not every DJ that exists: STATION_PERIODIC_SEGMENTS puts Vera
-at hours 0/8/16 UTC, which land in the 00:00 (dj-mox), 06:00 (open/music),
-and 12:00 (dj-nova) blocks respectively -- the 18:00 (dj-nikon) block
-algebraically never contains one of her insertions (same fact
-build_playlist.py's own header comment relies on), so there's no
-"dj-nikon" target to generate. If STATION_PERIODIC_SEGMENTS/STATION_SHIFTS
-ever change such that block becomes reachable, add a target here too.
+at hours 0/8/16/18 UTC, which land in the 00:00 (dj-mox), 06:00
+(open/music), 12:00 (dj-nova), and 18:00 (dj-nikon) blocks respectively --
+every block now gets exactly one occurrence (hour 18 was added
+2026-09-05 specifically to close what had been a gap; see
+build_playlist.py's STATION_PERIODIC_SEGMENTS comment for the full
+history). If STATION_PERIODIC_SEGMENTS/STATION_SHIFTS ever change again,
+update HANDOFF_TARGETS here to match.
 
 Vera's own rundown script stays generic/non-naming (see her persona.md)
 precisely because these tags exist -- the dynamic part happens here, not
@@ -43,7 +44,7 @@ gated behind review_segment.py, same reasoning as generate_outros.py --
 generic, reusable, brief-independent.
 
 Usage:
-    uv run generate_vera_handoffs.py                    # all 3 targets, 5 lines each
+    uv run generate_vera_handoffs.py                    # all 4 targets, 5 lines each
     uv run generate_vera_handoffs.py --target dj-mox     # just one target
     uv run generate_vera_handoffs.py --count 6
     uv run generate_vera_handoffs.py --dry-run           # print prompts, no API call
@@ -65,8 +66,8 @@ SPIRIT_DOC = REPO_ROOT / "The-Spirit-of-OmaRadio.md"
 VERA_DIR = REPO_ROOT / "staff" / "stations" / "one" / "djs" / "dj-vera"
 STATION_DJS_DIR = REPO_ROOT / "staff" / "stations" / "one" / "djs"
 
-# See module docstring for why exactly these three and not more.
-HANDOFF_TARGETS = ["dj-mox", "dj-nova", "music"]
+# See module docstring for why exactly these four and not more.
+HANDOFF_TARGETS = ["dj-mox", "dj-nova", "dj-nikon", "music"]
 
 DEFAULT_COUNT = 5  # smaller than generate_outros.py's pool -- each target is used far less often
 
