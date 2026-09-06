@@ -1,0 +1,4 @@
+# Compiled binary -- built locally, deployed by copying the artifact,
+# never committed (see this repo's CLAUDE.md for the deploy plan).
+/omaradio-tui
+/tui
