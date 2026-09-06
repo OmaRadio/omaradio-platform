@@ -20,7 +20,7 @@ password = ""
 level = "info"
 
 [geo]
-db_path = "/opt/omaradio/geoip/GeoLite2-Country.mmdb"  # make geoip-install fetches/installs this
+db_path = "/opt/omaradio/geoip/GeoLite2-City.mmdb"  # make geoip-install fetches/installs this
 
 [stats]
 db_path = "/opt/omaradio/stats/listeners.db"  # dir created by make cliamp-service-install; cliamp-server creates the .db + schema itself
