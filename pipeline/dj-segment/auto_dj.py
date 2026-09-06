@@ -70,6 +70,7 @@ ALAN_DIR = REPO_ROOT / "staff" / "stations" / STATION / "station-manager"
 GENERATE_SCRIPT = Path(__file__).resolve().parent / "generate_segment.py"
 REVIEW_SCRIPT = Path(__file__).resolve().parent / "review_segment.py"
 TOPICS_FILE = Path(__file__).resolve().parent / "topics.toml"
+MIGRATE_TOPICS_SCRIPT = REPO_ROOT / "scheduler" / "db" / "migrate_topics.py"
 
 RECENT_SEGMENTS_WINDOW = 5  # how many of a DJ's most-recent segments count as "recently covered"
 ALAN_MODEL = "claude-haiku-4-5"  # cheap tier -- picking + drafting a brief is mechanical, not creative writing
@@ -231,6 +232,33 @@ def _db_connect():
     except Exception as exc:
         logging.warning(f"Could not connect to scheduler DB, falling back to topics.toml: {exc}")
         return None
+
+
+def sync_topics_to_db() -> None:
+    """Runs scheduler/db/migrate_topics.py before every cycle, so editing
+    topics.toml takes effect immediately again -- without this,
+    topics_for_dj() below would keep serving whatever was last migrated
+    forever, since it trusts the DB completely once it has ANY rows for a
+    category (it doesn't merge in topics.toml entries the DB hasn't seen
+    yet). Best-effort: a sync failure (locked DB, malformed topics.toml)
+    logs a warning and this cycle just runs against whatever the DB
+    already has, exactly like every other DB interaction in this
+    pipeline -- never blocks generation over a sync hiccup. Plain
+    python3, not `uv run`: migrate_topics.py is stdlib-only, no PEP 723
+    header, same as build_playlist.py."""
+    if not SCHEDULER_DB_PATH.exists():
+        return  # nothing to sync into -- topics_for_dj() will use topics.toml directly anyway
+    try:
+        result = subprocess.run(
+            ["python3", str(MIGRATE_TOPICS_SCRIPT)],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            logging.warning(f"migrate_topics.py failed (continuing with whatever's already in the db):\n{result.stderr.strip()}")
+        else:
+            logging.info(result.stdout.strip())
+    except Exception as exc:
+        logging.warning(f"Could not run migrate_topics.py (continuing with whatever's already in the db): {exc}")
 
 
 def topics_for_dj(dj_slug: str) -> list[dict]:
@@ -454,6 +482,8 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+    sync_topics_to_db()
 
     djs = ALL_DJS if args.all else [args.dj]
     for dj_slug in djs:
