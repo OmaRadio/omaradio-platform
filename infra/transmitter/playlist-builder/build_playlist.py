@@ -565,12 +565,42 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
     }
 
 
-def write_schedule(vault_root: Path, station: str, block_start: datetime, schedule: dict) -> Path:
+def schedule_path_for(vault_root: Path, station: str, block_start: datetime) -> Path:
     schedule_dir = vault_root / "schedule" / station / f"{block_start.year:04d}" / f"{block_start.month:02d}"
-    schedule_dir.mkdir(parents=True, exist_ok=True)
-    path = schedule_dir / f"{block_start.day:02d}-{block_start.hour:02d}{block_start.minute:02d}.json"
+    return schedule_dir / f"{block_start.day:02d}-{block_start.hour:02d}{block_start.minute:02d}.json"
+
+
+def write_schedule(vault_root: Path, station: str, block_start: datetime, schedule: dict) -> Path:
+    path = schedule_path_for(vault_root, station, block_start)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(schedule, indent=2), encoding="utf-8")
     return path
+
+
+def load_preplanned_schedule(vault_root: Path, station: str, block_start: datetime) -> dict | None:
+    """Checks for a schedule already written for this exact block ahead
+    of time -- e.g. by plan_block.py's own timer, run early enough to
+    generate track-aware song shoutouts before the block airs (see
+    plan_block.py's module docstring). Returns None (the caller falls
+    back to live plan_block() planning, today's exact original behavior)
+    if nothing's there, or if what IS there doesn't actually match this
+    station/block -- never trusts a file blindly, and a missing/corrupt/
+    mismatched pre-plan must never be able to block a build, only cost
+    it the shoutouts."""
+    path = schedule_path_for(vault_root, station, block_start)
+    if not path.exists():
+        return None
+    try:
+        schedule = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logging.warning(f"Found a pre-planned schedule at {path} but couldn't read it ({exc}) -- planning live instead.")
+        return None
+    if (schedule.get("schema_version") != 1
+            or schedule.get("station") != station
+            or schedule.get("block_start_utc") != iso(block_start)):
+        logging.warning(f"Pre-planned schedule at {path} doesn't match station={station}/block_start={iso(block_start)} -- planning live instead.")
+        return None
+    return schedule
 
 
 def send_email(subject: str, body: str) -> None:
@@ -869,24 +899,41 @@ def main():
         parser.error("--station is required (unless using --rebuild-from)")
 
     block_start = args.block_start or floor_to_block(utc_now())
-    schedule = plan_block(args.vault_root, args.station, block_start)
+
+    # A block-planner timer (plan_block.py) may already have written a
+    # schedule for this exact block ahead of time, specifically so
+    # track-aware song shoutouts have time to render before the block
+    # airs. Using it here (rather than planning live) is the only thing
+    # that makes those shoutouts ever actually reach on-air/ -- see
+    # plan_block.py's own docstring. Nothing changes for a station/block
+    # with no pre-plan: today's exact live-planning behavior, unchanged.
+    preplanned = load_preplanned_schedule(args.vault_root, args.station, block_start)
+    if preplanned is not None:
+        schedule = preplanned
+        logging.info("Found a pre-planned schedule for this block (written ahead of time by plan_block.py) -- using it instead of planning live.")
+    else:
+        schedule = plan_block(args.vault_root, args.station, block_start)
 
     dj_label = schedule["owning_dj"] or "none (open block)"
     n_segments = sum(1 for e in schedule["entries"] if e["type"] == "segment")
+    n_shoutouts = sum(1 for e in schedule["entries"] if e["type"] == "shoutout")
     n_outros = sum(1 for e in schedule["entries"] if e["type"] in ("outro", "handoff"))
     n_tracks = sum(1 for e in schedule["entries"] if e["type"] == "track")
     hours = schedule["estimated_duration_seconds"] / 3600
     logging.info(
         f"Block {schedule['block_start_utc']}-{schedule['block_end_utc']} station={args.station} dj={dj_label}: "
-        f"{n_segments} segments / {n_outros} outros / {n_tracks} tracks, ~{hours:.2f}h, {len(schedule['entries'])} entries total"
+        f"{n_segments} segments / {n_shoutouts} shoutouts / {n_outros} outros / {n_tracks} tracks, ~{hours:.2f}h, {len(schedule['entries'])} entries total"
     )
 
     if args.dry_run:
         print(json.dumps(schedule, indent=2))
         return
 
-    schedule_path = write_schedule(args.vault_root, args.station, block_start, schedule)
-    logging.info(f"Wrote schedule: {schedule_path}")
+    if preplanned is None:
+        schedule_path = write_schedule(args.vault_root, args.station, block_start, schedule)
+        logging.info(f"Wrote schedule: {schedule_path}")
+    else:
+        logging.info(f"Schedule already on disk at {schedule_path_for(args.vault_root, args.station, block_start)} (written by the pre-planning step).")
 
     if args.plan_only:
         return

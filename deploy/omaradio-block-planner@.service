@@ -1,0 +1,34 @@
+[Unit]
+Description=OmaRadio block planner (track-aware song shoutouts) -- pre-plan station %i's next block
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=omaradio
+Group=omaradio
+# Reuses the same secrets file already provisioned for Vera/dj-auto --
+# ANTHROPIC_API_KEY (for generate_shoutouts.py's Claude call, shelled
+# out to via `uv run`) and LOCAL_LIBRARY, unused by this script directly
+# but harmless to inherit. No new secret needed.
+EnvironmentFile=/opt/omaradio/secrets/dj-segment.env
+# Not a secret, just a path -- plain Environment=, not EnvironmentFile=.
+# MUST match every other db-aware unit's value exactly -- see
+# omaradio-playlist-builder@.service's own comment for why a mismatch
+# would silently split data across two different database files.
+Environment=OMARADIO_DB_PATH=/opt/omaradio/db/omaradio.sqlite3
+# plan_block.py runs from INSIDE the git checkout, unlike build_playlist.py
+# itself (which gets copied to a flattened /opt/omaradio/playlist-builder/
+# location) -- it does `import build_playlist` and computes its own
+# REPO_ROOT assuming it's sitting at its normal checkout path, so it must
+# NOT be flattened/copied anywhere else. Plain python3, stdlib only, same
+# as build_playlist.py -- the one non-stdlib piece (the actual Claude
+# call) is delegated to generate_shoutouts.py via its own `uv run`
+# subprocess, which plan_block.py invokes with an absolute uv path (see
+# find_uv() in that script) since systemd units don't source shell
+# profiles.
+ExecStart=/usr/bin/python3 /opt/omaradio/platform/infra/transmitter/playlist-builder/plan_block.py --station %i
+WorkingDirectory=/opt/omaradio/platform/infra/transmitter/playlist-builder
+
+[Install]
+WantedBy=multi-user.target

@@ -62,6 +62,11 @@ DJ_AUTO_TIMER_UNIT     := /etc/systemd/system/omaradio-dj-auto.timer
 
 NOTIFY_SECRETS_ENV     := $(SECRETS_DIR)/notify.env
 
+BLOCK_PLANNER_SERVICE_SRC  := platform/deploy/omaradio-block-planner@.service
+BLOCK_PLANNER_TIMER_SRC    := platform/deploy/omaradio-block-planner@.timer
+BLOCK_PLANNER_SERVICE_UNIT := /etc/systemd/system/omaradio-block-planner@.service
+BLOCK_PLANNER_TIMER_UNIT   := /etc/systemd/system/omaradio-block-planner@.timer
+
 MEETUPS_FETCH_SERVICE_SRC  := platform/deploy/omaradio-meetups-fetch.service
 MEETUPS_FETCH_TIMER_SRC    := platform/deploy/omaradio-meetups-fetch.timer
 MEETUPS_FETCH_SERVICE_UNIT := /etc/systemd/system/omaradio-meetups-fetch.service
@@ -75,7 +80,8 @@ MEETUPS_FETCH_TIMER_UNIT   := /etc/systemd/system/omaradio-meetups-fetch.timer
         vera-auto-service-install \
         dj-auto-service-install \
         notify-service-install \
-        meetups-fetch-service-install
+        meetups-fetch-service-install \
+        block-planner-service-install
 
 help:
 	@echo "Targets:"
@@ -87,6 +93,7 @@ help:
 	@echo "  make vera-auto-service-install   - one-time: install + enable Vera's news-auto-generator timer"
 	@echo "  make dj-auto-service-install     - one-time: install + enable Mox/Nova's daily auto-generator timer"
 	@echo "  make meetups-fetch-service-install - one-time: install + enable the 3x/day Luma meetups fetcher timer"
+	@echo "  make block-planner-service-install - one-time: install + enable the 45min-ahead block planner timer"
 	@echo "  make notify-service-install      - one-time: provision the email-notification secrets file"
 	@echo "  make status                     - show status of managed services"
 	@echo "  make logs SERVICE=cliamp-server - tail logs for a service"
@@ -266,6 +273,38 @@ meetups-fetch-service-install:
 	@echo "omaradio-meetups-fetch.timer installed and enabled (not started yet)."
 	@echo "Verify with a manual 'sudo systemctl start omaradio-meetups-fetch.service' first, then:"
 	@echo "  sudo systemctl enable --now omaradio-meetups-fetch.timer"
+
+# --- block-planner: pre-plans track-aware song shoutouts, 45min ahead ----
+#
+# One-time: install the templated service + timer. Safe to re-run
+# (idempotent). Unlike build_playlist.py, plan_block.py is NOT copied
+# anywhere -- it runs straight from the platform/ git checkout (see the
+# unit file's own comment for why: import build_playlist and its own
+# REPO_ROOT computation both depend on it). Reuses dj-segment.env (same
+# secret already provisioned for Vera/dj-auto) for ANTHROPIC_API_KEY.
+# Enables the timer but does NOT start it, same first-rollout discipline
+# as every other timer here -- build_playlist.py already falls back to
+# live planning with zero shoutouts if no pre-plan exists in time, so
+# there's no urgency to start this before verifying it once manually.
+
+block-planner-service-install:
+	@command -v uv >/dev/null || [ -x "$(HOME)/.local/bin/uv" ] || { echo "uv not found -- install it for the omaradio user first (see pipeline/dj-segment/README.md)"; exit 1; }
+	@[ -f "$(KOKORO_CACHE_DIR)/kokoro-v1.0.onnx" ] && [ -f "$(KOKORO_CACHE_DIR)/voices-v1.0.bin" ] || { \
+		echo "Kokoro model weights not found under $(KOKORO_CACHE_DIR) -- fetch them first:"; \
+		echo "  wget -P $(KOKORO_CACHE_DIR) https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"; \
+		echo "  wget -P $(KOKORO_CACHE_DIR) https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"; \
+		exit 1; \
+	}
+	@[ -f "$(VERA_AUTO_SECRETS_ENV)" ] || { echo "$(VERA_AUTO_SECRETS_ENV) not found -- run 'make vera-auto-service-install' first (this target reuses that secret)."; exit 1; }
+	@[ -f /opt/omaradio/db/omaradio.sqlite3 ] || echo "Note: /opt/omaradio/db/omaradio.sqlite3 doesn't exist yet -- run scheduler/db/migrate.py first (see CLAUDE.md)."
+	sudo cp $(BLOCK_PLANNER_SERVICE_SRC) $(BLOCK_PLANNER_SERVICE_UNIT)
+	sudo cp $(BLOCK_PLANNER_TIMER_SRC) $(BLOCK_PLANNER_TIMER_UNIT)
+	sudo systemctl daemon-reload
+	sudo systemctl enable omaradio-block-planner@one.timer
+	@echo "omaradio-block-planner@one.timer installed and enabled (not started yet)."
+	@echo "Verify with a manual 'sudo systemctl start omaradio-block-planner@one.service' first"
+	@echo "(check the resulting schedule/one/YYYY/MM/*.json for shoutout entries), then:"
+	@echo "  sudo systemctl enable --now omaradio-block-planner@one.timer"
 
 # --- notify: email + Pushover alerts (low topic stock, on-air rebuild ----
 #     summaries) -------------------------------------------------------

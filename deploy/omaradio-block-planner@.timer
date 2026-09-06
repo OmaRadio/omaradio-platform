@@ -1,0 +1,18 @@
+[Unit]
+Description=Run the block planner 45min ahead of each block build, for station %i
+
+[Timer]
+# 23:20 / 05:20 / 11:20 / 17:20 UTC -- 45min before each of the
+# 00:00/06:00/12:00/18:00 UTC block builds (see
+# omaradio-playlist-builder@.timer). More lead time than Vera's 15min
+# (omaradio-vera-auto.timer): rendering ~10-15 shoutout clips is more
+# work than one segment. Offset to :20 (not :15) specifically to avoid
+# exact-same-second overlap with omaradio-meetups-fetch.timer's
+# 03/11/19:15 schedule -- SQLite's busy-timeout would likely absorb a
+# collision fine, but there's no reason to rely on that when a 5-minute
+# offset avoids it entirely.
+OnCalendar=*-*-* 23,05,11,17:20:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
