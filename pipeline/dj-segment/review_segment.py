@@ -41,7 +41,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOCAL_LIBRARY = Path.home() / "Work" / "OmaRadio" / "media_library" / "library"
-SCHEDULER_DB_PATH = REPO_ROOT / "scheduler" / "db" / "omaradio.sqlite3"
+# OMARADIO_DB_PATH override -- same convention as LOCAL_LIBRARY, lets
+# transmitter-one point this at /opt/omaradio/db/ (outside the platform/
+# git checkout). Unset falls back to a repo-relative default for local use.
+SCHEDULER_DB_PATH = Path(os.environ.get("OMARADIO_DB_PATH", str(REPO_ROOT / "scheduler" / "db" / "omaradio.sqlite3")))
 
 
 def review_root() -> Path:

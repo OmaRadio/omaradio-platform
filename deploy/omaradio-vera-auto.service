@@ -14,6 +14,14 @@ Group=omaradio
 # cliamp.env, there's no useful degraded mode without these, so a missing
 # file should fail the unit loudly rather than run a pointless cycle.
 EnvironmentFile=/opt/omaradio/secrets/dj-segment.env
+# Not a secret, just a path -- plain Environment=, not EnvironmentFile=.
+# MUST match omaradio-playlist-builder@.service's value exactly: this
+# process (and review_segment.py, which it shells out to on approve)
+# would otherwise default to a checkout-relative DB path, while
+# build_playlist.py's flattened deployed copy needs this env var to find
+# any DB at all -- if these two units disagreed, mentions/plays would
+# silently split across two different database files.
+Environment=OMARADIO_DB_PATH=/opt/omaradio/db/omaradio.sqlite3
 # uv installs to the invoking user's ~/.local/bin, not a system path --
 # absolute path here since systemd units don't source shell profiles (no
 # ~/.local/bin on PATH otherwise). Confirmed 2026-09-03: no passwordless

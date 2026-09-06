@@ -26,13 +26,17 @@ Usage:
 """
 
 import argparse
+import os
 import re
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent / "omaradio.sqlite3"
+# OMARADIO_DB_PATH override -- same convention as LOCAL_LIBRARY, lets
+# transmitter-one point this at /opt/omaradio/db/ (outside the platform/
+# git checkout). Unset falls back to a repo-relative default for local use.
+DEFAULT_DB_PATH = Path(os.environ.get("OMARADIO_DB_PATH", str(Path(__file__).resolve().parent / "omaradio.sqlite3")))
 
 ID3_TAGS = ["artist", "title", "album", "genre", "copyright", "comment"]
 

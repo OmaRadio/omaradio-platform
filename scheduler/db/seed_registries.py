@@ -14,12 +14,16 @@ Usage:
 """
 
 import argparse
+import os
 import sqlite3
 import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DB_PATH = Path(__file__).resolve().parent / "omaradio.sqlite3"
+# OMARADIO_DB_PATH override -- same convention as LOCAL_LIBRARY, lets
+# transmitter-one point this at /opt/omaradio/db/ (outside the platform/
+# git checkout). Unset falls back to a repo-relative default for local use.
+DEFAULT_DB_PATH = Path(os.environ.get("OMARADIO_DB_PATH", str(Path(__file__).resolve().parent / "omaradio.sqlite3")))
 DJS_GLOB = "staff/stations/*/djs/*/persona.toml"
 
 # No display-name registry exists for stations today (persona.toml only

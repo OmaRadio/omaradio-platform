@@ -6,6 +6,16 @@ After=network.target
 Type=oneshot
 User=omaradio
 Group=omaradio
+# Not a secret, just a path -- plain Environment=, not EnvironmentFile=.
+# build_playlist.py gets copied (make playlist-builder-service-install)
+# to this flattened /opt/omaradio/playlist-builder/ location, completely
+# outside the platform/ git checkout -- its own repo-relative
+# DEFAULT_DB_PATH fallback computation is meaningless from here, so this
+# is the ONLY thing that makes the scheduler DB features (fairness,
+# genre windows, plays recording) actually activate in production, not
+# just an optional override. /opt/omaradio/db/ is a sibling of platform/,
+# same reasoning as secrets/, stats/, geoip/ living outside the checkout.
+Environment=OMARADIO_DB_PATH=/opt/omaradio/db/omaradio.sqlite3
 # Optional (leading '-'): rebuild-summary emails are opt-in, not required
 # -- build_playlist.py's send_email() no-ops quietly if this file (or
 # RESEND_API_KEY within it) isn't there. Same pattern as cliamp.env.

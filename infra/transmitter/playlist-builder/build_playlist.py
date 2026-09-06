@@ -54,6 +54,7 @@ Rollback: this script keeps exactly one prior generation as on-air.prev/
 import argparse
 import json
 import logging
+import os
 import random
 import re
 import shutil
@@ -68,7 +69,16 @@ from pathlib import Path
 # pre-DB behavior on any failure (missing file, locked, corrupt schema,
 # whatever) -- this script drives the live stream, and a DB problem must
 # never be able to break a block build. See _db_connect()'s docstring.
-DB_PATH = Path(__file__).resolve().parents[3] / "scheduler" / "db" / "omaradio.sqlite3"
+#
+# OMARADIO_DB_PATH (same override pattern as LOCAL_LIBRARY elsewhere in
+# this pipeline) lets transmitter-one point this at /opt/omaradio/db/,
+# deliberately outside the platform/ git checkout -- same reasoning as
+# secrets/, stats/, geoip/ already living as siblings of platform/, not
+# inside it: real, growing, mutable data shouldn't sit in a directory
+# `git pull` manages. Unset (e.g. on a dev machine) falls back to a
+# repo-relative default for local testing convenience.
+DEFAULT_DB_PATH = Path(__file__).resolve().parents[3] / "scheduler" / "db" / "omaradio.sqlite3"
+DB_PATH = Path(os.environ.get("OMARADIO_DB_PATH", str(DEFAULT_DB_PATH)))
 
 DEFAULT_VAULT_ROOT = Path("/mnt/media_library")
 

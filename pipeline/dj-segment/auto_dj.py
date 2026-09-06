@@ -207,7 +207,10 @@ def load_topics() -> list[dict]:
     return data.get("topic", [])
 
 
-SCHEDULER_DB_PATH = REPO_ROOT / "scheduler" / "db" / "omaradio.sqlite3"
+# OMARADIO_DB_PATH override -- same convention as LOCAL_LIBRARY, lets
+# transmitter-one point this at /opt/omaradio/db/ (outside the platform/
+# git checkout). Unset falls back to a repo-relative default for local use.
+SCHEDULER_DB_PATH = Path(os.environ.get("OMARADIO_DB_PATH", str(REPO_ROOT / "scheduler" / "db" / "omaradio.sqlite3")))
 
 
 def _db_connect():

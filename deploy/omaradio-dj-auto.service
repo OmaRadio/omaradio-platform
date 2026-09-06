@@ -11,6 +11,14 @@ Group=omaradio
 # ANTHROPIC_API_KEY, same LOCAL_LIBRARY pointed at the vault. No new
 # secret needed for this pipeline.
 EnvironmentFile=/opt/omaradio/secrets/dj-segment.env
+# Not a secret, just a path -- plain Environment=, not EnvironmentFile=.
+# MUST match omaradio-playlist-builder@.service's value exactly: this
+# process (and review_segment.py, which it shells out to on approve)
+# would otherwise default to a checkout-relative DB path, while
+# build_playlist.py's flattened deployed copy needs this env var to find
+# any DB at all -- if these two units disagreed, mentions/plays would
+# silently split across two different database files.
+Environment=OMARADIO_DB_PATH=/opt/omaradio/db/omaradio.sqlite3
 # Optional (leading '-'): low-topic-stock emails are opt-in, not required
 # -- auto_dj.py's send_email() no-ops quietly if this file (or
 # RESEND_API_KEY within it) isn't there. Same pattern as cliamp.env.
