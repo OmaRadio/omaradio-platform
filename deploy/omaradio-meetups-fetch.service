@@ -1,0 +1,22 @@
+[Unit]
+Description=OmaRadio meetups fetcher (Luma calendar -> scheduler db items)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=omaradio
+Group=omaradio
+# Not a secret, just a path -- plain Environment=, not EnvironmentFile=.
+# MUST match the other db-aware units' value exactly (playlist-builder@,
+# dj-auto, vera-auto) -- see those units' own comments for why a mismatch
+# here would silently split data across two different database files.
+Environment=OMARADIO_DB_PATH=/opt/omaradio/db/omaradio.sqlite3
+# uv installs to the invoking user's ~/.local/bin, not a system path --
+# absolute path here since systemd units don't source shell profiles.
+# Same reasoning/fix as omaradio-vera-auto.service.
+ExecStart=/home/omaradio/.local/bin/uv run /opt/omaradio/platform/pipeline/news-intern/fetch_meetups.py fetch
+WorkingDirectory=/opt/omaradio/platform/pipeline/news-intern
+
+[Install]
+WantedBy=multi-user.target

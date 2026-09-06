@@ -62,6 +62,11 @@ DJ_AUTO_TIMER_UNIT     := /etc/systemd/system/omaradio-dj-auto.timer
 
 NOTIFY_SECRETS_ENV     := $(SECRETS_DIR)/notify.env
 
+MEETUPS_FETCH_SERVICE_SRC  := platform/deploy/omaradio-meetups-fetch.service
+MEETUPS_FETCH_TIMER_SRC    := platform/deploy/omaradio-meetups-fetch.timer
+MEETUPS_FETCH_SERVICE_UNIT := /etc/systemd/system/omaradio-meetups-fetch.service
+MEETUPS_FETCH_TIMER_UNIT   := /etc/systemd/system/omaradio-meetups-fetch.timer
+
 .PHONY: help deploy status logs \
         cliamp-fetch cliamp-build cliamp-install cliamp-update cliamp-service-install \
         geoip-fetch geoip-install \
@@ -69,7 +74,8 @@ NOTIFY_SECRETS_ENV     := $(SECRETS_DIR)/notify.env
         playlist-builder-service-install \
         vera-auto-service-install \
         dj-auto-service-install \
-        notify-service-install
+        notify-service-install \
+        meetups-fetch-service-install
 
 help:
 	@echo "Targets:"
@@ -80,6 +86,7 @@ help:
 	@echo "  make playlist-builder-service-install - one-time: install + enable the 6-hourly playlist builder timer"
 	@echo "  make vera-auto-service-install   - one-time: install + enable Vera's news-auto-generator timer"
 	@echo "  make dj-auto-service-install     - one-time: install + enable Mox/Nova's daily auto-generator timer"
+	@echo "  make meetups-fetch-service-install - one-time: install + enable the 3x/day Luma meetups fetcher timer"
 	@echo "  make notify-service-install      - one-time: provision the email-notification secrets file"
 	@echo "  make status                     - show status of managed services"
 	@echo "  make logs SERVICE=cliamp-server - tail logs for a service"
@@ -237,6 +244,28 @@ dj-auto-service-install:
 	@echo "Verify with 'uv run auto_dj.py --dj dj-mox --dry-run' and a manual"
 	@echo "'sudo systemctl start omaradio-dj-auto.service' first, then:"
 	@echo "  sudo systemctl enable --now omaradio-dj-auto.timer"
+
+# --- meetups-fetch: Luma calendar -> scheduler db items, 3x/day ----------
+#
+# One-time: install the systemd unit + timer. Safe to re-run (idempotent).
+# No secrets file needed -- fetch_meetups.py only needs OMARADIO_DB_PATH
+# (a plain path, not a secret; set directly in the unit, must match every
+# other db-aware unit's value exactly -- see the unit file's own comment).
+# Enables the timer but does NOT start it, same first-rollout discipline
+# as every other timer here. Verify with 'uv run fetch_meetups.py --dry-run'
+# and a manual 'systemctl start omaradio-meetups-fetch.service' first, then:
+#   sudo systemctl enable --now omaradio-meetups-fetch.timer
+
+meetups-fetch-service-install:
+	@command -v uv >/dev/null || [ -x "$(HOME)/.local/bin/uv" ] || { echo "uv not found -- install it for the omaradio user first (see pipeline/dj-segment/README.md)"; exit 1; }
+	@[ -f /opt/omaradio/db/omaradio.sqlite3 ] || echo "Note: /opt/omaradio/db/omaradio.sqlite3 doesn't exist yet -- run scheduler/db/migrate.py first (see CLAUDE.md)."
+	sudo cp $(MEETUPS_FETCH_SERVICE_SRC) $(MEETUPS_FETCH_SERVICE_UNIT)
+	sudo cp $(MEETUPS_FETCH_TIMER_SRC) $(MEETUPS_FETCH_TIMER_UNIT)
+	sudo systemctl daemon-reload
+	sudo systemctl enable omaradio-meetups-fetch.timer
+	@echo "omaradio-meetups-fetch.timer installed and enabled (not started yet)."
+	@echo "Verify with a manual 'sudo systemctl start omaradio-meetups-fetch.service' first, then:"
+	@echo "  sudo systemctl enable --now omaradio-meetups-fetch.timer"
 
 # --- notify: email + Pushover alerts (low topic stock, on-air rebuild ----
 #     summaries) -------------------------------------------------------

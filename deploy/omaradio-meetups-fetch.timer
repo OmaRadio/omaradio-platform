@@ -1,0 +1,15 @@
+[Unit]
+Description=Run the Omarchy meetups fetcher 3x/day
+
+[Timer]
+# 03:15 / 11:15 / 19:15 UTC -- evenly spaced 8h apart, offset from the
+# top of the hour (same pattern as vera-auto's :45 offset from
+# playlist-builder's :00) to avoid clustering with the other timers on
+# this host. Meetups don't change fast enough to need finer granularity
+# than this -- this is about catching new listings/status changes
+# (sold-out, date shifts) within a reasonable window, not real-time sync.
+OnCalendar=*-*-* 03,11,19:15:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
