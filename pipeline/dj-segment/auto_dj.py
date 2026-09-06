@@ -207,11 +207,92 @@ def load_topics() -> list[dict]:
     return data.get("topic", [])
 
 
+SCHEDULER_DB_PATH = REPO_ROOT / "scheduler" / "db" / "omaradio.sqlite3"
+
+
+def _db_connect():
+    """Best-effort connection to the scheduler DB -- see
+    scheduler/db/migrations/. Returns None on any failure (missing file,
+    locked, corrupt), same pattern as build_playlist.py's _db_connect().
+    Every caller must treat None (or an empty result set -- see the
+    comments on topics_for_dj()/recently_used_topic_ids() below for why
+    that's also a fallback trigger here) as "use topics.toml /
+    script.json scanning instead," never raise."""
+    if not SCHEDULER_DB_PATH.exists():
+        return None
+    try:
+        import sqlite3
+        conn = sqlite3.connect(str(SCHEDULER_DB_PATH), timeout=5)
+        conn.execute("PRAGMA foreign_keys = ON;")
+        return conn
+    except Exception as exc:
+        logging.warning(f"Could not connect to scheduler DB, falling back to topics.toml: {exc}")
+        return None
+
+
 def topics_for_dj(dj_slug: str) -> list[dict]:
+    """Topic candidates for this DJ -- {"id": ..., "text": ...} pairs,
+    matching topics.toml's own shape so alan_pick_and_brief()/run_for_dj()
+    don't need to care which source this came from.
+
+    Prefers the scheduler DB (once migrated via
+    scheduler/db/migrate_topics.py) as the source of truth; falls back to
+    reading topics.toml directly -- today's exact original behavior -- if
+    the DB is unavailable OR returns zero rows for this DJ. The zero-rows
+    case is deliberately treated the same as "unavailable": it's the
+    expected state on a host where migrate_topics.py hasn't been run yet,
+    not evidence that topics are exhausted (status alone doesn't track
+    usage -- recently_used_topic_ids()/mentions does that separately, so
+    an actually-migrated DJ with genuinely no topics would be a real
+    topics.toml authoring gap, not something this fallback needs to solve)."""
+    conn = _db_connect()
+    if conn is not None:
+        try:
+            dj_row = conn.execute("SELECT id FROM djs WHERE slug = ?", (dj_slug,)).fetchone()
+            dj_id = dj_row[0] if dj_row else None
+            rows = conn.execute(
+                "SELECT slug, summary FROM items WHERE category = 'topic' AND status = 'active' "
+                "AND (dj_scope_id IS NULL OR dj_scope_id = ?)",
+                (dj_id,),
+            ).fetchall()
+            if rows:
+                return [{"id": slug, "text": summary} for slug, summary in rows]
+        except Exception as exc:
+            logging.warning(f"Topic query against scheduler DB failed, falling back to topics.toml: {exc}")
+        finally:
+            conn.close()
     return [t for t in load_topics() if not t.get("djs") or dj_slug in t["djs"]]
 
 
 def recently_used_topic_ids(dj_slug: str) -> set[str]:
+    """Topics used recently enough to exclude from Alan's next pick.
+    Prefers the scheduler DB's `mentions` ledger (real approval-time
+    history, written by review_segment.py regardless of whether approval
+    was human or AUTO-*) over scanning generated segments' script.json
+    meta. Falls back to the script.json scan -- today's exact original
+    behavior -- if the DB is unavailable or returns zero rows: mentions
+    logging only started existing partway through this platform's life,
+    so real prior usage from before that deployment won't be in the
+    ledger yet, and treating "empty" as "fall back" is a safety net
+    against re-picking something that actually was used recently."""
+    conn = _db_connect()
+    if conn is not None:
+        try:
+            rows = conn.execute(
+                "SELECT i.slug FROM mentions m "
+                "JOIN items i ON i.id = m.item_id "
+                "JOIN djs d ON d.id = m.dj_id "
+                "WHERE d.slug = ? AND i.category = 'topic' "
+                "ORDER BY m.occurred_at DESC LIMIT ?",
+                (dj_slug, RECENT_SEGMENTS_WINDOW),
+            ).fetchall()
+            if rows:
+                return {r[0] for r in rows}
+        except Exception as exc:
+            logging.warning(f"Recently-used query against scheduler DB failed, falling back to script.json scan: {exc}")
+        finally:
+            conn.close()
+
     generated_dir = local_library() / "dj-segments" / dj_slug / "generated"
     if not generated_dir.is_dir():
         return set()

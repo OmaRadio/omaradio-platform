@@ -57,9 +57,18 @@ import logging
 import random
 import re
 import shutil
+import sqlite3
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+# Optional scheduler DB (see scheduler/db/migrations/) -- fairness-weighted
+# track selection, genre time-windows, and play-history recording. Every
+# function touching it is best-effort and MUST degrade to this script's
+# pre-DB behavior on any failure (missing file, locked, corrupt schema,
+# whatever) -- this script drives the live stream, and a DB problem must
+# never be able to break a block build. See _db_connect()'s docstring.
+DB_PATH = Path(__file__).resolve().parents[3] / "scheduler" / "db" / "omaradio.sqlite3"
 
 DEFAULT_VAULT_ROOT = Path("/mnt/media_library")
 
@@ -205,6 +214,120 @@ def probe_duration(path: Path) -> float | None:
         return None
 
 
+def _db_connect() -> sqlite3.Connection | None:
+    """Best-effort connection to the scheduler DB. Returns None on ANY
+    failure (missing file, locked, corrupt) -- every caller must treat
+    None as "DB features disabled for this run" and fall back to
+    pre-DB behavior exactly, never raise."""
+    if not DB_PATH.exists():
+        return None
+    try:
+        conn = sqlite3.connect(str(DB_PATH), timeout=5)
+        conn.execute("PRAGMA foreign_keys = ON;")  # per-connection, SQLite doesn't persist this
+        return conn
+    except Exception as exc:
+        logging.warning(f"Could not connect to scheduler DB at {DB_PATH}, disabling DB-backed features for this run: {exc}")
+        return None
+
+
+def _db_lookup_id(conn: sqlite3.Connection, table: str, slug: str | None) -> int | None:
+    if not slug:
+        return None
+    try:
+        row = conn.execute(f"SELECT id FROM {table} WHERE slug = ?", (slug,)).fetchone()  # noqa: S608 -- table is a fixed internal literal, never user input
+        return row[0] if row else None
+    except Exception as exc:
+        logging.warning(f"DB lookup failed for {table} slug '{slug}': {exc}")
+        return None
+
+
+def _db_lookup_genre_window(conn: sqlite3.Connection, station_id: int | None, dj_id: int | None,
+                             current_time: datetime) -> str | None:
+    if station_id is None:
+        return None
+    try:
+        hhmm = current_time.strftime("%H:%M")
+        row = conn.execute(
+            "SELECT genre FROM genre_windows WHERE station_id = ? AND active = 1 "
+            "AND (dj_id IS NULL OR dj_id = ?) AND ? BETWEEN start_time AND end_time LIMIT 1",
+            (station_id, dj_id, hhmm),
+        ).fetchone()
+        return row[0] if row else None
+    except Exception as exc:
+        logging.warning(f"Genre window lookup failed: {exc}")
+        return None
+
+
+def _db_tracks_in_genre(conn: sqlite3.Connection, genre: str) -> set[str]:
+    try:
+        rows = conn.execute(
+            "SELECT m.path FROM media m JOIN tracks t ON t.media_id = m.id WHERE t.genre = ?",
+            (genre,),
+        ).fetchall()
+        return {r[0] for r in rows}
+    except Exception as exc:
+        logging.warning(f"Genre track lookup failed for '{genre}': {exc}")
+        return set()
+
+
+def _db_rank_by_staleness(conn: sqlite3.Connection, station_id: int, kind: str, dj_id: int | None) -> list[str]:
+    """media.path values ordered stalest-first -- most overdue for
+    replay, accounting for rotation_weight (see media.rotation_weight's
+    comment). A row with no plays history sorts first via the LEFT JOIN
+    + COALESCE, same treatment as a brand-new track."""
+    try:
+        rows = conn.execute(
+            "SELECT m.path, "
+            "  (julianday('now') - julianday(COALESCE(MAX(p.occurred_at), '1970-01-01T00:00:00Z'))) "
+            "    * m.rotation_weight AS weighted_staleness "
+            "FROM media m LEFT JOIN plays p ON p.media_id = m.id AND p.station_id = ? "
+            "WHERE m.kind = ? AND (? IS NULL OR m.dj_id = ?) "
+            "GROUP BY m.id ORDER BY weighted_staleness DESC",
+            (station_id, kind, dj_id, dj_id),
+        ).fetchall()
+        return [r[0] for r in rows]
+    except Exception as exc:
+        logging.warning(f"Staleness ranking query failed for kind={kind}: {exc}")
+        return []
+
+
+def pick_fair(conn: sqlite3.Connection | None, vault_root: Path, station_id: int | None,
+              pool: list[Path], last: Path | None, kind: str, dj_id: int | None = None,
+              stale_fraction: float = 0.25) -> tuple[Path | None, float | None]:
+    """Like pick_playable(), but when the DB is available, restricts
+    random.choice() to the stalest `stale_fraction` of the pool (by real
+    play history, weighted by rotation_weight) instead of the whole pool
+    -- fair rotation without a fully deterministic, predictable cycle.
+    Falls back to plain pick_playable() over the whole pool -- today's
+    exact pre-DB behavior -- if the DB is unavailable or any query fails."""
+    if conn is None or station_id is None or not pool:
+        return pick_playable(pool, last)
+
+    ranked_paths = _db_rank_by_staleness(conn, station_id, kind, dj_id)
+    if not ranked_paths:
+        return pick_playable(pool, last)
+
+    pool_by_relpath = {}
+    for p in pool:
+        try:
+            pool_by_relpath[str(p.relative_to(vault_root))] = p
+        except ValueError:
+            continue
+
+    ranked_pool = [pool_by_relpath[rp] for rp in ranked_paths if rp in pool_by_relpath]
+    known = set(ranked_pool)
+    # Anything in `pool` the DB doesn't know about yet (not backfilled) has
+    # no staleness score -- treat it as at least as overdue as anything
+    # else, so a freshly-added file isn't starved until the next backfill.
+    ranked_pool = [p for p in pool if p not in known] + ranked_pool
+
+    if not ranked_pool:
+        return pick_playable(pool, last)
+
+    slice_size = max(1, round(len(ranked_pool) * stale_fraction))
+    return pick_playable(ranked_pool[:slice_size], last)
+
+
 def pick_playable(pool: list[Path], last: Path | None) -> tuple[Path | None, float | None]:
     """Randomly pick from pool, excluding `last` when possible (anti
     immediate-repeat), retrying a different candidate if ffprobe fails on
@@ -267,6 +390,15 @@ def make_entry(index: int, kind: str, dj: str | None, source_path: Path, duratio
 def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
     block_end = block_start + timedelta(seconds=BLOCK_SECONDS)
     dj = owning_dj(station, block_start)
+
+    # Optional: fairness-weighted track selection + genre time-windows
+    # (see scheduler/db/migrations/). db_conn is None (and every
+    # DB-backed feature below silently no-ops to pre-DB behavior) if the
+    # DB doesn't exist yet or a connection can't be made -- see
+    # _db_connect()'s docstring.
+    db_conn = _db_connect()
+    db_station_id = _db_lookup_id(db_conn, "stations", station) if db_conn else None
+    db_dj_id = _db_lookup_id(db_conn, "djs", dj) if (db_conn and dj) else None
 
     segment_pool = list_segments(vault_root, dj) if dj else []
     music_pool = list_music(vault_root)
@@ -389,13 +521,27 @@ def plan_block(vault_root: Path, station: str, block_start: datetime) -> dict:
         for _ in range(random.randint(3, 6)):
             if len(entries) >= MAX_ENTRIES or total_seconds >= BLOCK_SECONDS:
                 break
-            track, dur = pick_playable(music_pool, last_track)
+            candidate_pool = music_pool
+            if db_conn and db_station_id:
+                current_time = block_start + timedelta(seconds=total_seconds)
+                genre = _db_lookup_genre_window(db_conn, db_station_id, db_dj_id, current_time)
+                if genre:
+                    genre_paths = _db_tracks_in_genre(db_conn, genre)
+                    genre_pool = [p for p in music_pool if str(p.relative_to(vault_root)) in genre_paths]
+                    if genre_pool:
+                        candidate_pool = genre_pool
+                    else:
+                        logging.warning(f"Genre window active ('{genre}') but no matching tracks found -- using the full pool instead.")
+            track, dur = pick_fair(db_conn, vault_root, db_station_id, candidate_pool, last_track, kind="track")
             if track is None:
                 break
             entries.append(make_entry(len(entries) + 1, "track", None, track, dur))
             total_seconds += dur
             last_track = track
             _maybe_insert_periodic()
+
+    if db_conn:
+        db_conn.close()
 
     return {
         "schema_version": 1,
@@ -585,6 +731,56 @@ def apply_cliamp_change(mode: str) -> bool:
     return True
 
 
+def _db_ensure_media(conn: sqlite3.Connection, rel_path: str, entry: dict) -> int | None:
+    row = conn.execute("SELECT id FROM media WHERE path = ?", (rel_path,)).fetchone()
+    if row:
+        return row[0]
+    dj_id = _db_lookup_id(conn, "djs", entry.get("dj"))
+    cur = conn.execute(
+        "INSERT INTO media (path, kind, dj_id, duration_seconds, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+        (rel_path, entry["type"], dj_id, entry["duration_seconds"]),
+    )
+    return cur.lastrowid
+
+
+def _db_record_plays(vault_root: Path, station: str, schedule: dict) -> None:
+    """Best-effort: record what actually got placed on-air into the plays
+    ledger, for future fairness-weighted selection (pick_fair()). Called
+    from build_on_air() itself (not plan_block()) so this also covers
+    the --rebuild-from path, which skips planning entirely. Never raises
+    -- a DB problem here must never affect an already-successful on-air
+    rebuild; on any failure, this on-air rebuild is unaffected and simply
+    isn't reflected in future fairness calculations."""
+    conn = _db_connect()
+    if conn is None:
+        return
+    try:
+        station_id = _db_lookup_id(conn, "stations", station)
+        if station_id is None:
+            return
+        block_start_dt = datetime.strptime(schedule["block_start_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        offset = 0.0
+        for entry in schedule["entries"]:
+            air_time_iso = iso(block_start_dt + timedelta(seconds=offset))
+            offset += entry["duration_seconds"]
+            try:
+                rel_path = str(Path(entry["source_path"]).relative_to(vault_root))
+            except ValueError:
+                continue
+            media_id = _db_ensure_media(conn, rel_path, entry)
+            if media_id is not None:
+                conn.execute(
+                    "INSERT INTO plays (media_id, station_id, block_start, air_time, occurred_at) "
+                    "VALUES (?, ?, ?, ?, datetime('now'))",
+                    (media_id, station_id, schedule["block_start_utc"], air_time_iso),
+                )
+        conn.commit()
+    except Exception as exc:
+        logging.warning(f"Failed to record plays to scheduler DB (on-air rebuild itself succeeded, unaffected): {exc}")
+    finally:
+        conn.close()
+
+
 def build_on_air(vault_root: Path, station: str, schedule: dict, apply_mode: str | None = "reload") -> None:
     on_air_dir = vault_root / "stations" / station / "on-air"
     staging_dir = on_air_dir.parent / "on-air.new"
@@ -614,6 +810,7 @@ def build_on_air(vault_root: Path, station: str, schedule: dict, apply_mode: str
         on_air_dir.rename(prev_dir)
     staging_dir.rename(on_air_dir)
     logging.info(f"on-air/ rebuilt with {written} entries (prior generation kept at {prev_dir}).")
+    _db_record_plays(vault_root, station, schedule)
     notify_rebuild(schedule)
 
     if apply_mode is None:

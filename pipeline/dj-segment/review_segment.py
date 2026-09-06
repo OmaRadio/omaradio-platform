@@ -34,12 +34,14 @@ sync or air.
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_LOCAL_LIBRARY = Path.home() / "Work" / "OmaRadio" / "media_library" / "library"
+SCHEDULER_DB_PATH = REPO_ROOT / "scheduler" / "db" / "omaradio.sqlite3"
 
 
 def review_root() -> Path:
@@ -120,6 +122,72 @@ def cmd_show(args):
     print(f"\nAudio: {mp3_path}" + (" (missing)" if not mp3_path.exists() else ""))
 
 
+def record_mention(segment_id: str, data: dict, approved_by: str) -> None:
+    """Best-effort approval-time usage tracking into scheduler/db's
+    `mentions` table -- one row per successful approve, human or AUTO-*.
+
+    Deliberately NOT shared/imported from scheduler/db/*.py (this repo's
+    convention: duplicate small connection helpers rather than cross-import
+    between differently-scoped scripts) and deliberately never allowed to
+    fail the approval itself -- same pattern as send_email/send_pushover in
+    auto_dj.py for a secondary, best-effort side-effect. `items` isn't
+    backfilled yet as of this writing, so "no matching item" is the expected
+    common case, not an error.
+    """
+    if not SCHEDULER_DB_PATH.exists():
+        print(f"[i] No scheduler DB found at {SCHEDULER_DB_PATH} -- skipping mentions logging.")
+        return
+
+    try:
+        meta = data.get("meta", {})
+        dj_slug = meta.get("dj")
+
+        conn = sqlite3.connect(SCHEDULER_DB_PATH)
+        try:
+            conn.execute("PRAGMA foreign_keys = ON;")
+
+            dj_row = conn.execute("SELECT id, station_id FROM djs WHERE slug = ?", (dj_slug,)).fetchone()
+            if not dj_row:
+                print(f"[i] No djs row for slug '{dj_slug}' -- skipping mentions logging for {segment_id}.")
+                return
+            dj_id, station_id = dj_row
+
+            # Candidate items.slug values to resolve to a surrogate item_id,
+            # in priority order: a DJ's own topic first, then any news items
+            # referenced (Vera's rundowns can reference several).
+            candidate_slugs = []
+            if meta.get("topic_id"):
+                candidate_slugs.append(meta["topic_id"])
+            candidate_slugs.extend(meta.get("news_item_ids") or [])
+
+            item_id = None
+            for slug in candidate_slugs:
+                row = conn.execute("SELECT id FROM items WHERE slug = ?", (slug,)).fetchone()
+                if row:
+                    item_id = row[0]
+                    break
+
+            if item_id is None:
+                print(
+                    f"[i] No matching items row for {segment_id} "
+                    f"(topic_id={meta.get('topic_id')!r}, news_item_ids={meta.get('news_item_ids')!r}) -- "
+                    "skipping mentions log (expected until items is backfilled)."
+                )
+                return
+
+            conn.execute(
+                "INSERT INTO mentions (item_id, station_id, dj_id, segment_id, approved_by, occurred_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (item_id, station_id, dj_id, segment_id, approved_by, datetime.now(timezone.utc).isoformat()),
+            )
+            conn.commit()
+            print(f"[+] Logged mentions row for {segment_id} (item_id={item_id}).")
+        finally:
+            conn.close()
+    except Exception as exc:
+        print(f"[!] Could not record mentions usage for {segment_id} -- approval still stands: {exc}", file=sys.stderr)
+
+
 def cmd_approve(args):
     seg_dir = find_segment_dir(args.segment_id)
     if load_decision(seg_dir):
@@ -147,6 +215,8 @@ def cmd_approve(args):
         "note": args.note or "",
     }
     (seg_dir / "decision.json").write_text(json.dumps(decision, indent=2), encoding="utf-8")
+
+    record_mention(args.segment_id, data, decision["by"])
 
     print(f"[+] Approved by {decision['by']}.")
     print(f"[+] Copied to {mp3_dest}")

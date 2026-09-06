@@ -13,3 +13,7 @@ __pycache__/
 # Generated audio -- pipeline output, not source
 pipeline/**/*.mp3
 pipeline/**/*.wav
+
+# Scheduler DB -- generated locally/on transmitter-one via scheduler/db/migrate.py,
+# not committed (real data, differs per machine, would just be binary noise in git)
+scheduler/db/*.sqlite3
